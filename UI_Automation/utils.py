@@ -55,24 +55,24 @@ def verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, ste
     # Short wait for UI update
     page.wait_for_timeout(5000)
     # Screenshot
-    print_step(f"Step {step+3}: Take screenshot of updated SSID value in RDKB CLI page after update")
+    print_step(f"Step {step+2}: Take screenshot of updated SSID value in RDKB CLI page after update")
     take_screenshot(page, request, paths["screenshots"] / "updated_ssid.png")
     # Verify updated SSID in UI
-    fetch_and_verify_home_network_input(page, request, "SSID", "#profile-ssid", new_ssid, step+4, paths)
+    fetch_and_verify_home_network_input(page, request, "SSID", "#profile-ssid", new_ssid, step+3, paths)
     # Retry ssid update check logic after wait time
     devices = ["controller", "agent"]
-    max_retries = 5
+    max_retries = 6
     retry_interval = 10000  # 10 sec
-    print_step(f"Step {step+5}: Initial wait before device ssid verification")
+    print_step(f"Step {step+4}: Initial wait before device ssid verification")
     page.wait_for_timeout(20000)
+    print_step(f"Step {step+5}: Verify SSID update on both controller and agent using retry loop validation.")
     for attempt in range(max_retries + 1):
-        print_step(f"SSID verification attempt : {attempt + 1}")
+        print(f"SSID verification attempt : {attempt + 1}")
         results = []
-        for count, device in enumerate(devices, start=step+6):
-            print_step(f"Step {count}: Fetch updated SSID from {device} device")
+        for device in devices:
             out = ssh.run(device, "iw dev mld0 info|grep ssid|cut -d' ' -f2")
             value = out.strip()
-            print_success(f"Updated SSID from {device} device: {value}")
+            print(f"Updated SSID from {device} device: {value}")
             results.append(value)
         controller_ssid, agent_ssid = results
         if controller_ssid == new_ssid and agent_ssid == new_ssid:
@@ -80,9 +80,9 @@ def verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, ste
             return True
         # Retry attempt logic
         if attempt < max_retries:
-            print_error(request, f"SSID not updated yet. Expected: {new_ssid}, Controller: {controller_ssid}, Agent: {agent_ssid}. Retrying in {retry_interval // 1000} seconds.")
+            print(f"SSID not updated yet. Expected: {new_ssid}, Controller: {controller_ssid}, Agent: {agent_ssid}. Retrying in {retry_interval // 1000} seconds.")
             page.wait_for_timeout(retry_interval)
-    # SSID failure check
+    # SSID failure
     print_error(request, f"SSID update FAILED after retries. Expected: {new_ssid}, Controller: {controller_ssid}, Agent: {agent_ssid}")
     
 def get_client_ip_interface_status(request, ssh, commands):

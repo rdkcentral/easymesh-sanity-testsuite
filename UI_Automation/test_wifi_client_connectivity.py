@@ -77,23 +77,12 @@ def test_fronthaul_wifi_client_connectivity(request, ssh):
 
 def test_fronthaul_wifi_client_connectivity_with_updated_ssid(page, request, ssh, paths):
     print_step("Entering Test2: test_fronthaul_wifi_client_connectivity_with_updated_ssid")
-    print_step("Step 1: Update the fronthaul SSID from RDKB-CLI and verify the update on controller and agent devices")
+    print("Update the fronthaul SSID from RDKB-CLI and verify the update on controller and agent devices")
     new_ssid = "TDKB_New_SSID_01"
-    ctrl_out, agent_out = utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 2, paths)
-    # Validate SSID consistency after update on controller and agent devices
-    print_step("Step 9: Validate if updated SSID is consistent on both controller and agent devices and matches the expected value")
-    ctrl_ssid = ctrl_out.strip()
-    agent_ssid = agent_out.strip()
-    # Check controller SSID
-    if ctrl_ssid != new_ssid:
-        print_error(request, f"SSID update validation failed on controller. Expected: {new_ssid}, Actual: {ctrl_ssid}")
-    # Check agent SSID
-    if agent_ssid != new_ssid:
-        print_error(request, f"SSID update validation failed on agent. Expected: {new_ssid}, Actual: {agent_ssid}")
-    print_success(f"Pass: SSID update verified successfully on both controller and agent with value '{new_ssid}'")
+    utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 1, paths)
     # Wait 60 sec for the updated ssid to broadcast
     time.sleep(60)
     # Verify client connectivity after successful SSID update on controller and agent
-    print_step("Step 10: Trigger test_fronthaul_wifi_client_connectivity to verify client connectivity after SSID update")
+    print_step("Step 7: Trigger test_fronthaul_wifi_client_connectivity to verify client connectivity after SSID update")
     test_fronthaul_wifi_client_connectivity(request, ssh)
     print_step("Exiting Test2: test_fronthaul_wifi_client_connectivity_with_updated_ssid")
