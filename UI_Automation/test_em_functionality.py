@@ -25,18 +25,7 @@ import pytest
 def test_rdkbcli_update_verify_ssid(page, request, ssh, paths):
     print_step("Entering Test1: test_rdkbcli_update_verify_ssid")
     new_ssid = "TDKB_New_SSID_02"
-    results = utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 1, paths)
-    # Final validation to check if SSID updates are consistent on both controller and agent devices 
-    print_step("Step 9: Validate if updated SSID is consistent on both controller and agent devices and matches the expected value")
-    if results[0] != new_ssid:
-        print_error(request, f"SSID update validation failed on controller device. Expected: {new_ssid}, Actual: {results[0]}")
-    if results[1] != new_ssid:
-        print_error(request, f"SSID update validation failed on agent device. Expected: {new_ssid}, Actual: {results[1]}")
-    if results[0] != new_ssid or results[1] != new_ssid:
-        print_error(request, f"SSID update is NOT consistent with controller and agent devices. Expected SSID: {new_ssid}, Actual SSID on controller: {results[0]}, Actual SSID on agent: {results[1]}")
-    else:
-        print_success(f"SSID update is consistent with controller and agent devices. Expected SSID: {new_ssid}, Actual SSID on controller: {results[0]}, Actual SSID on agent: {results[1]}")
-    print_success(f"SSID update verification passed on both controller and agent devices with updated value {new_ssid}.")
+    utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 1, paths)
     print_step("Exiting Test1: test_rdkbcli_update_verify_ssid")
 
 def test_rdkbcli_update_verify_password(page, request, ssh, paths):
@@ -70,45 +59,86 @@ def test_rdkbcli_update_verify_password(page, request, ssh, paths):
         print_success(f"Password update verification passed on controller device with expected value '{new_pass}'.")
     print_step("Exiting Test2: test_rdkbcli_update_verify_password")
 
-@pytest.mark.skip(reason="Disabled due to unstable select device dropdown and operating class values")
 @pytest.mark.parametrize("radio_cfg", conftest.RADIO_CONFIG)
-def test_rdkbcli_verify_channel_change(request, page, radio_cfg, ssh, paths):
-    print_step("Entering Test3: test_rdkbcli_verify_channel_change")
+def test_rdkbcli_channel_change_preference(request, page, radio_cfg, ssh, paths):
+    print_step("Entering Test3: test_rdkbcli_channel_change_preference")
     #Navigate to Rdkbcli page
     utils.navigate_to_rdkbcli_page(page, request, 1)
     #Navigate to Wireless Settings page
     utils.navigate_to_required_rdkbcli_page(page, request, 'Wireless Settings', 2, paths)
-    page.wait_for_timeout(5000)
     #Get the radio config values
-    link_id = radio_cfg["link_id"]
+    tab = radio_cfg["radio"]
     band = radio_cfg["ui_tab"]
-    channel = radio_cfg["channel"]
-    tab1 = radio_cfg["radio"]
-    print_step(f"Step 3: Select the Radio {tab1} tab to change the channel")
-    page.click(f'button.radio-tab-btn[data-band="{tab1}"]')
-    # Verify that the clicked radio tab is now active
+    new_channel = str(radio_cfg["channel"])
+    link_id = radio_cfg["link_id"]
+    most_preference = "14"
+    least_preference = "0"
+    # Select Radio tab to change the channel
+    print_step(f"Step 3: Select Radio tab {tab}")
+    page.click(f'button.radio-tab-btn[data-band="{tab}"]')
     active_tab = page.query_selector('.radio-tab-btn.active')
-    assert active_tab.get_attribute('data-band') == tab1
-    print_step(f"Step 4: Select the channel value to change (channel: {channel})")
-    page.select_option(f'#channel-{band}-manual', channel)
-    page.wait_for_timeout(5000)  # wait for the router to apply
-    print_step("Step 5: Click 'Apply Radio Settings' button to update channel change")
+    # Verify that the clicked radio tab is now active
+    assert active_tab.get_attribute('data-band') == tab
+    # Select ALL station option by default
+    print_step("Step 4: Select ALL station device option")
+    device_mac = "FF:FF:FF:FF:FF:FF"
+    page.select_option(f"#device-{band}", device_mac)
+    #Verify that ALL station option is selected correctly
+    selected_device = page.locator(f"#device-{band}").input_value()
+    assert selected_device == device_mac, "Failed to select ALL station"
+    #Find the current MOST preferred channel (14)
+    print_step(f"Step 5: Find current channel with Most preference ({most_preference})")
+    rows = page.locator(f'#list-{band} .list-row')
+    count = rows.count()
+    current_channel = None
+    for i in range(count):
+        row = rows.nth(i)
+        badge_text = row.locator(".pref-badge").inner_text()
+        if most_preference in badge_text:
+            current_channel = row.get_attribute("data-channel")
+            print(f"Current MOST preferred channel: {current_channel}")
+            break
+    assert current_channel is not None, f"No channel found with preference {most_preference}"
+    # Change the preference of current channel from MOST (14) to LEAST (0)
+    print_step(f"Step 6: Change channel {current_channel} preference value to {least_preference}")
+    current_row = page.locator(f'#list-{band} .list-row[data-channel="{current_channel}"]')
+    # Click button to enable dropdown
+    current_row.locator(".pref-choose").click()
+    current_dd = current_row.locator("select.pref-inline-dd")
+    current_dd.wait_for(state="visible")
+    current_dd.select_option("0")
+    # Select new channel
+    print_step(f"Step 7: Select new channel {new_channel}")
+    new_row = page.locator(f'#list-{band} .list-row[data-channel="{new_channel}"]')
+    new_checkbox = new_row.locator(".ch-check")
+    if not new_checkbox.is_checked():
+        new_checkbox.check()
+    # Set new channel preference value to MOST (14)
+    print_step(f"Step 8: Set channel {new_channel} preference value to {most_preference}")
+    new_row.locator(".pref-choose").click()
+    new_dd = new_row.locator("select.pref-inline-dd")
+    new_dd.wait_for(state="visible")
+    new_dd.select_option(f"{most_preference}")
+    #Apply settings
+    print_step("Step 9: Click Apply Radio Settings")
     page.click("#save-radio-settings")
-    # Screenshot (avoid full_page on docs sites)
-    print_step("Step 6: Take screenshot of updated Channel value in RDKB CLI page after update")
-    utils.take_screenshot(page, request, paths["screenshots"] / f"rdkbcli_{band}_channel_change.png")
-    #Print updated channel value from RDKB-CLI page for verification
-    print_step("Step 7: Fetch Changed channel value from RDKB CLI page for verification")
-    updated_channel = page.locator(f"#channel-{band}-manual").input_value()
-    print(f"Updated Channel value from RDKBCLI page for {band}:", updated_channel)
-    if updated_channel != channel:
-        print_error(request, f"Channel change validation failed on RDKB CLI. Expected Channel value: {channel}, Actual channel value: {updated_channel}")
-    else:
-        print_success("Channel Change validation passed on RDKB CLI with expected value.")
-    #Add 30s delay to allow changes to apply on device before SSH verification
-    time.sleep(30)
+    page.wait_for_timeout(5000)
+    # Validate UI values
+    print_step("Step 10: Validate UI channel change updates")
+    updated_new = new_row.locator(".pref-badge").inner_text()
+    updated_old = current_row.locator(".pref-badge").inner_text()
+    print(f"New channel {new_channel} preference value: {updated_new}")
+    print(f"Old channel {current_channel} preference value: {updated_old}")
+    #Validate the channel preference values.
+    assert most_preference in updated_new, f"New channel {new_channel} not set to MOST ({most_preference})"
+    assert least_preference in updated_old, f"Old channel {current_channel} not set to LEAST ({least_preference})"
+    # Screenshot
+    utils.take_screenshot(page,request,paths["screenshots"] / f"rdkbcli_{band}_preference_change.png")
+    #Add 60s delay to allow changes to apply on device before SSH verification
+    print_step("Step 11: Waiting for device sync")
+    time.sleep(60)
     #Verify Channel change on device via SSH command execution
-    print_step("Step 8: Fetch the updated channel value from Controller and Agent device")
+    print_step("Step 12: Fetch the updated channel value from Controller and Agent device")
     ctrl_out = ssh.run("controller", "iw dev mld0 info")
     agent_out = ssh.run("agent", "iw dev mld0 info")
     ctrl_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', ctrl_out, re.S)
@@ -122,13 +152,13 @@ def test_rdkbcli_verify_channel_change(request, page, radio_cfg, ssh, paths):
     else:
         updated_channel_agent_device = None
         print_error(request, f"Channel not found in agent output for link ID {link_id} - {band}")
-    if updated_channel_ctrl_device != channel:
-        print_error(request, f"Channel change validation failed on controller. Expected Channel value: {channel}, Actual channel value: {updated_channel_ctrl_device}")
-    elif updated_channel_agent_device != channel:
-        print_error(request, f"Channel change validation failed on agent. Expected Channel value: {channel}, Actual channel value: {updated_channel_agent_device}")
+    if updated_channel_ctrl_device != new_channel:
+        print_error(request, f"Channel change validation failed on controller. Expected Channel value: {new_channel}, Actual channel value: {updated_channel_ctrl_device}")
+    elif updated_channel_agent_device != new_channel:
+        print_error(request, f"Channel change validation failed on agent. Expected Channel value: {new_channel}, Actual channel value: {updated_channel_agent_device}")
     else:
-        print_success(f"Channel Change verification passed in Controller and Agent device with updated value {channel}.")
-    print_step("Exiting Test3: test_rdkbcli_verify_channel_change")
+        print_success(f"Channel Change verification passed in Controller and Agent device with updated value {new_channel}.")
+    print_step("Entering Test3: test_rdkbcli_channel_change_preference")
 
 def test_rdkbcli_wifi_reset_with_default_values(page,request,ssh,paths):
     print_step("Entering Test4: test_rdkbcli_wifi_reset_with_default_values")
@@ -157,10 +187,13 @@ def test_rdkbcli_wifi_reset_with_default_values(page,request,ssh,paths):
         # SQL query to retrieve SSID and PassPhrase for each haul type from OneWifiMesh DB.
         query = f"SELECT SSID, PassPhrase FROM {request.session.network_ssid_list_db_table} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
         query_out = utils.get_db_values(request, ssh, query)
-        db_ssid, db_pass = query_out.strip().split("\t")
+        db_output = query_out.strip().split()
+        if len(db_output) < 2:
+            print_error(request, f"Invalid DB response (expected 2 values): {query_out}")
+        db_ssid, db_pass = db_output[0], db_output[1]
         #Verify whether the DB value matches the default values.
         if db_ssid == default_ssid and db_pass == default_pass:
-            print(f"{haul_id} : Wi-Fi reset completed successfully; the default SSID and password were restored correctly.")
+            print(f"{haul_id} DB Data: \n DB SSID: {db_ssid} DB Password: {db_pass} \n Wi-Fi reset completed successfully; the default SSID and password were restored correctly.")
         else:
             if db_ssid != default_ssid:
                 print_error(request, f"{haul_id} : SSID mismatch after Wi-Fi reset. Expected: {default_ssid}, Actual: {db_ssid}")
@@ -212,10 +245,13 @@ def test_rdkbcli_wifi_reset_with_custom_values(page,request,ssh,paths):
         # SQL query to retrieve SSID and PassPhrase for each haul type from OneWifiMesh DB.
         query = f"SELECT SSID, PassPhrase FROM {request.session.network_ssid_list_db_table} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
         query_out = utils.get_db_values(request, ssh, query)
-        db_ssid, db_pass = query_out.strip().split("\t")
+        db_output = query_out.strip().split()
+        if len(db_output) < 2:
+            print_error(request, f"Invalid DB response (expected 2 values): {query_out}")
+        db_ssid, db_pass = db_output[0], db_output[1]
         #Verify whether the DB value matches the default values.
         if db_ssid == custom_ssid and db_pass == custom_pass:
-            print(f"{haul_id} : Wi-Fi reset completed successfully, custom SSID and Password were applied correctly.")
+            print(f"{haul_id} DB Data: \n DB SSID: {db_ssid} DB Password: {db_pass} \n Wi-Fi reset completed successfully, custom SSID and Password were applied correctly.")
         else:
             if db_ssid != custom_ssid:
                 print_error(request, f"{haul_id} : SSID mismatch after Wi-Fi reset. Expected: {custom_ssid}, Actual: {db_ssid}")
