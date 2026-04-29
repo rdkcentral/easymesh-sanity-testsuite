@@ -51,11 +51,19 @@ The suite validates:
 
 ### Hardware/Network Requirements
 
-- Controller Device: Accessible via network (configurable in conftest.py)
-- Agent/Extender Device: Accessible via network (configurable in conftest.py)
-- WiFi Client: Device with WiFi capability (configurable in conftest.py)
-- LAN Client: Device connected to controller via Ethernet (configurable in conftest.py)
+- Controller Device: 1 device Accessible via network (configurable in conftest.py)
+- Agent/Extender Devices: 2 devices Accessible via network (configurable in conftest.py)
+- WiFi Client: 1 device with WiFi capability (configurable in conftest.py). This Wi-Fi client should be connected to the same LAN network as the BPI controller, and the client IP obtained via LAN should be updated in conftest.py under Wi-Fi client details (and stored in request.session.client_ip).
+- LAN Client: 1 device connected to controller via Ethernet (configurable in conftest.py)
 - Database Access: Mesh database accessible from controller (configurable in conftest.py)
+
+### Test suite Execution Pre-requisites 
+
+- The sanity test suite execution requires test setup with 1 Controller, 2 Extenders, 1 LAN client and 1 Wi-Fi client.
+- Mesh backhaul formation must be ensured before running the test suite. If backhaul is not successfully formed, test cases are expected to fail.
+- Please configure the test setup details as directed in 'Configuration' section of this document. Only 1 Extender details need to be configured as part of 'Agent details' in conftest.py.
+- 2 extenders need to be onboarded successfully for running the topology related test 'test_network_topology.py::test_validate_ui_topology'.
+- Please ensure that the setup is in default state or should be set to a default state before triggering the full suite. Only with default state, the 2 test cases 'test_basic_sanity_tc::test_db_values_match_default_json' and 'test_basic_sanity_tc::test_broadcast_default_SSID' will pass.
 
 ### Port Requirements
 
