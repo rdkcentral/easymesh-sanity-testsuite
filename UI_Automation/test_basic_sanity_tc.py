@@ -70,13 +70,19 @@ def test_em_agent_service_status(request, ssh):
 def test_db_values_match_default_json(request, ssh): 
     print_step("Entering Test7: test_db_values_match_default_json")
     # Validate all SSID entries from Reset.json against DB dynamically.
-    print_step(f"Step 1: Read the {request.session.reset_json_file} from Controller device")
+    print_step(f"Step 1: Read the {request.session.reset_json_file} from Controller device and Verify the entries.")
     reset_json = utils.get_reset_json_data(request, ssh)
     json_ssids = reset_json.get(f"{request.session.network_ssid_list_db_table}")
     if not json_ssids:
-        print_error(request, f"Reset.json does not contain {request.session.network_ssid_list_db_table} entries")
+        pytest.fail(f"Reset.json does not contain {request.session.network_ssid_list_db_table} entries")
+    else:
+        print_success(f"Reset.json contains {request.session.network_ssid_list_db_table} entries.")
     print_step(f"Step 2: Get the {request.session.network_ssid_list_db_table} table values from {request.session.easy_mesh_db} database")
     db_ssids = utils.get_network_ssid_list_db(request, ssh)
+    if db_ssids:
+        print_success(f"{request.session.easy_mesh_db} database contains {request.session.network_ssid_list_db_table} table.")
+    else:
+        print_error(request,f"{request.session.easy_mesh_db} database doesn't contain {request.session.network_ssid_list_db_table} table.")
     # Use JSON HaulType to locate DB row by ID, then validate all other fields.
     print_step(f"Step 3: Validate all JSON and DB entries by using Haultype as ID")
     for json_entry in json_ssids:
