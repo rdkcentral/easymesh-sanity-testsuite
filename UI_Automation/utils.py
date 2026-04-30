@@ -55,17 +55,17 @@ def verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, ste
     # Short wait for UI update
     page.wait_for_timeout(5000)
     # Screenshot
-    print_step(f"Step {step+2}: Take screenshot of updated SSID value in RDKB CLI page after update")
+    print_step(f"Step {step+3}: Take screenshot of updated SSID value in RDKB CLI page after update")
     take_screenshot(page, request, paths["screenshots"] / "updated_ssid.png")
     # Verify updated SSID in UI
-    fetch_and_verify_home_network_input(page, request, "SSID", "#profile-ssid", new_ssid, step+3, paths)
+    fetch_and_verify_home_network_input(page, request, "SSID", "#profile-ssid", new_ssid, step+4, paths)
     # Retry ssid update check logic after wait time
     devices = ["controller", "agent"]
     max_retries = 6
     retry_interval = 10000  # 10 sec
-    print_step(f"Step {step+4}: Initial wait before device ssid verification")
+    print(f"Initial wait before verifying SSID in devices")
     page.wait_for_timeout(20000)
-    print_step(f"Step {step+5}: Verify SSID update on both controller and agent using retry loop validation.")
+    print_step(f"Step {step+5}: Verify SSID update on both controller and agent.")
     for attempt in range(max_retries + 1):
         print(f"SSID verification attempt : {attempt + 1}")
         results = []
@@ -153,7 +153,8 @@ def fetch_and_verify_home_network_input(page, request, field_name, locator_id, e
                 f"{field_name} update validation failed on RDKB CLI. "
                 f"Expected: {expected_value}, Actual: {actual_value}"
             )
-        print_success(f"{field_name} update validation passed with expected value: {expected_value}")
+        else:
+            print_success(f"Fetched and validated updated {field_name} from RDKB CLI page")
     except PlaywrightTimeoutError:
         take_screenshot(page, request, paths["screenshots"] / f"{field_name}_fetch_timeout.png")
         pytest.fail(f"Timeout while fetching {field_name} value")
@@ -205,10 +206,10 @@ def wifi_reset_dialog_handler(dialog):
         dialog.accept()
         time.sleep(5)
     elif "wi-fi configuration reset successfully" in msg:
-        print(f"Dialog Message:\n{msg}")
+        print_success(f"Dialog Message: {msg}")
         dialog.accept()
     else:
-        print(f"Dialog Message:\n{msg}")
+        print(f"Dialog Message: {msg}")
         pytest.fail("Error in handling the Wi-Fi reset confirmation dialog.")
 
 def get_reset_json_data(request, ssh):
@@ -286,14 +287,14 @@ def verify_client_ip_and_internet(request, ssh, step):
     client_wifi_intf = get_client_wifi_intf(request, ssh)
     try:
         # Step 1: Get the IP address assigned to the client interface
-        print_step(f"Step {step}: Fetch IP address obtained on client interface '{client_wifi_intf}'")
+        print_step(f"Step {step}a: Fetch IP address obtained on client interface '{client_wifi_intf}'")
         client_ip_out = ssh.run_client(request.session.client_ip, request.session.client_user, request.session.client_pass, f"nmcli -t -f IP4.ADDRESS device show {client_wifi_intf} | awk -F'[:/]' '{{print $2}}'")
         client_ip = client_ip_out.strip()
         # Fail if no IP was obtained
         if not client_ip:
             pytest.fail(f"Client interface '{client_wifi_intf}' did not obtain an IP address from fronthaul network")
         print_success(f"Client obtained IP address on {client_wifi_intf}: {client_ip}")
-        print_step(f"Step {step+1}: Verify internet connectivity from client interface '{client_wifi_intf}' by pinging www.google.com")
+        print_step(f"Step {step}b: Verify internet connectivity from client interface '{client_wifi_intf}' by pinging www.google.com")
         # Step 2: Test internet connectivity using ping via the assigned IP/interface
         client_ping_out = ssh.run_client(request.session.client_ip, request.session.client_user, request.session.client_pass, f"ping -I {client_wifi_intf} -c 5 www.google.com")
         # Fail if ping reports any packet loss

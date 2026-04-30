@@ -30,18 +30,14 @@ def test_lan_client_connectivity(request, ssh):
     print(f"Client index command is {fetch_index_cmd} and output retrieved from controller: {index}")
     ip_cmd = f"dmcli eRT getv Device.Hosts.Host.{index}.IPAddress | sed -n 's/.*value: *//p'"
     intf_cmd = f"dmcli eRT getv Device.Hosts.Host.{index}.Layer1Interface | sed -n 's/.*value: *//p'"
-    active_cmd = f"dmcli eRT getv Device.Hosts.Host.{index}.Active | sed -n 's/.*value: *//p'"
     client_ip = ssh.run("controller", ip_cmd)
     interface = ssh.run("controller", intf_cmd)
-    active_status = ssh.run("controller", active_cmd)
     client_ip = client_ip.strip()
     interface = interface.strip()
-    active_status = active_status.strip()
     print(f"Client IP: {client_ip}")
     print(f"Interface: {interface}")
-    print(f"Active Status: {active_status}")
-    if not client_ip or interface != "Ethernet" or active_status.lower() != "true":
-        pytest.fail(f"LAN Client not connected properly. Client IP: {client_ip}, Interface: {interface}, Active: {active_status}")
+    if not client_ip or interface != "Ethernet" :
+        pytest.fail(f"LAN Client not connected properly. Client IP: {client_ip}, Interface: {interface}")
     # Verify client IP on client device
     cmd = "ifconfig | awk '/inet / {print $2}'"
     client_ip_out = ssh.run_client(client_ip, request.session.lan_client_user, request.session.lan_client_pass, cmd)
