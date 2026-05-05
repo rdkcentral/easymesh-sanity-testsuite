@@ -2,8 +2,8 @@
 
 ## User Manual and Setup Guide
 
-**Version:** 1.1  
-**Date:** April 2026  
+**Version:** 1.2  
+**Date:** May 2026  
 **Purpose:** Sanity test suite for EasyMesh mesh networking systems
 
 ## Table of Contents
@@ -51,11 +51,27 @@ The suite validates:
 
 ### Hardware/Network Requirements
 
-- Controller Device: Accessible via network (configurable in conftest.py)
-- Agent/Extender Device: Accessible via network (configurable in conftest.py)
-- WiFi Client: Device with WiFi capability (configurable in conftest.py)
-- LAN Client: Device connected to controller via Ethernet (configurable in conftest.py)
-- Database Access: Mesh database accessible from controller (configurable in conftest.py)
+- Controller Device: 1 device accessible via network (configured in config.yaml)
+- Agent/Extender Devices: 2 devices accessible via network (configured in config.yaml)
+- WiFi Client: 1 device with WiFi capability (configured in config.yaml). This Wi-Fi client should be connected to the same LAN network as the BPI controller.
+- LAN Client: 1 device connected to controller via Ethernet (configured in config.yaml)
+- Database Access: Mesh database accessible from controller (configured in config.yaml)
+
+### Test suite Execution Pre-requisites
+
+- The sanity test suite execution requires test setup with minimum - 1 Controller, 2 Extenders, 1 LAN client and 1 Wi-Fi client. More extenders and clients can be configured in config.yaml.
+- Mesh backhaul formation must be ensured before running the test suite. If backhaul is not successfully formed, test cases are expected to fail.
+- Please configure the test setup details as directed in the Configuration section of this document. Minimum 1 extender must be configured in config.yaml under extenders.
+- Minimum of 2 extenders need to be onboarded successfully for running the topology related test test_network_topology.py::test_validate_ui_topology.
+- Please ensure that the setup is in default state before triggering the full suite. Only with default state, the test cases test_basic_sanity_tc::test_db_values_match_default_json and test_basic_sanity_tc::test_broadcast_default_SSID will pass.
+
+### Known failures encountered with the test suite execution
+
+| Sl.No | Failed test case name | Description | Bug ID |
+| --- | --- | --- | --- |
+| 1 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_default_values | [TDK][AUTO] onewifi_em_ctrl process crash on WiFi Reset from RDKB-CLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-373 |
+| 2 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_custom_values | [TDK][AUTO] WiFi Reset with Custom Values Not Working via rdkbcli | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-418 |
+| 3 | test_em_functionality.py::test_rdkbcli_channel_change_preference | [TDK][AUTO] Intermittent Operating Class changes during Channel Switching via RDKBCLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-424 |
 
 ### Port Requirements
 
@@ -73,6 +89,8 @@ pip install pytest==7.4.0
 pip install pytest-html==3.2.0
 pip install playwright==1.40.0
 pip install paramiko==3.3.1
+pip install pyyaml==6.0.1
+pip install scp==0.15.0
 pip install scikit-image==0.21.0
 pip install opencv-python==4.8.1.78
 ```
@@ -105,38 +123,77 @@ playwright install chromium
 | pytest-html | 3.2.0 | HTML report generation |
 | playwright | 1.40.0 | Browser automation for UI testing |
 | paramiko | 3.3.1 | SSH client for device communication |
+| pyyaml | 6.0.1 | YAML config loading/parsing |
+| scp | 0.15.0 | SSH file transfer for log collection |
 | scikit-image | 0.21.0 | Image similarity comparison for topology |
 | opencv-python | 4.8.1.78 | Image processing for topology validation |
 
 ## Configuration
 
-### Updating Device Credentials
+### Updating Testbed Details in config.yaml
 
-Edit conftest.py to configure your test environment with your device details:
+All runtime configuration is loaded from UI_Automation/config.yaml via the config fixture in conftest.py.
 
-```python
-@pytest.fixture(scope="session", autouse=True)
-def global_config(request):
-		# Controller details
-		request.session.ctrl_ip = "<controller_ip>"
-		request.session.ctrl_user = "<controller_username>"
-		request.session.ctrl_pass = "<controller_password>"
+Update UI_Automation/config.yaml with your setup details:
 
-		# Agent details
-		request.session.ext1_ip = "<agent_ip>"
-		request.session.ext1_user = "<agent_username>"
-		request.session.ext1_pass = "<agent_password>"
+```yaml
+controller:
+  ip: "<controller_ip>"
+  user: "<controller_username>"
+  pass: "<controller_password>"
+  key_file: null
 
-		# Wi-Fi client details
-		request.session.client_ip = "<wifi_client_ip>"
-		request.session.client_user = "<wifi_client_username>"
-		request.session.client_pass = "<wifi_client_password>"
+extenders:
+  ext1:
+    ip: "<agent1_ip>"
+    user: "<agent1_username>"
+    pass: "<agent1_password>"
+    passphrase: ""
+  ext2:
+    ip: "<agent2_ip>"
+    user: "<agent2_username>"
+    pass: "<agent2_password>"
+    passphrase: ""
 
-		# Database details
-		request.session.easy_mesh_db = "<database_name>"
-		request.session.db_user = "<database_username>"
-		request.session.db_pass = "<database_password>"
+wifi_clients:
+  client1:
+    ip: "<wifi_client_ip>"
+    user: "<wifi_client_username>"
+    pass: "<wifi_client_password>"
+
+lan_clients:
+  lan1:
+    mac: "<lan_client_mac>"
+    user: "<lan_client_username>"
+    pass: "<lan_client_password>"
+
+database:
+  name: OneWifiMesh
+  user: "<database_username>"
+  pass: "<database_password>"
+  ssid_table: NetworkSSIDList
+
+system:
+  bridge_intf: brlan0
+  wifi_reset_interface: eth0_virt_peer
+  reset_json_file: /usr/ccsp/EasyMesh/Reset.json
 ```
+
+### Supported Keys and Validation Notes
+
+- controller.ip and controller.user are validated as required.
+- controller.pass is required for SSH login during runtime commands.
+- extenders must be a YAML mapping. Each extender requires ip and user; pass is required for SSH login.
+- wifi_clients and lan_clients are optional mappings. Configure them when running Wi-Fi and LAN client tests.
+- lan_clients.<name>.mac is required for LAN connectivity validation.
+- database.name, database.user, database.pass, and database.ssid_table are used by DB queries.
+- system.bridge_intf, system.wifi_reset_interface, and system.reset_json_file are used by topology and Wi-Fi reset flows.
+- controller.key_file and extenders.<name>.passphrase are present in the template but are not currently consumed by the active UI_Automation test flow.
+
+### Device Scaling
+
+- Add more extenders under extenders and more clients under wifi_clients/lan_clients in the YAML file as needed.
+- Tests auto-discover configured extenders in YAML file and iterate dynamically over them.
 
 ## Test Cases Documentation
 
@@ -207,20 +264,26 @@ The main.py file provides a convenient way to execute tests with predefined conf
 python main.py
 ```
 
-Note: Ensure conftest.py is configured with your device credentials before running.
+Note: Ensure config.yaml is updated with your device credentials before running.
 
-### Method 2: Using PyTest Terminal Commands
+#### Run All Tests (Recommended with synchronized output directory)
 
-#### Run All Tests
+```powershell
+$run = "TestRun_$(Get-Date -Format yyyyMMdd_HHmmss)"
+$env:TEST_RUN_DIR = $run
+pytest -v --html="$run/Reports/sanity_report.html" --self-contained-html
+```
+
+#### Run All Tests (Simple)
 
 ```bash
-pytest -v --html=TestRun_
+pytest -v --html=Reports/sanity_report.html --self-contained-html
 ```
 
 #### Run Specific Test File
 
 ```bash
-pytest test_basic_sanity_tc.py -v --html=TestRun_
+pytest test_basic_sanity_tc.py -v --html=Reports/sanity_report.html --self-contained-html
 ```
 
 #### Run Specific Test Case
@@ -232,7 +295,7 @@ pytest test_basic_sanity_tc.py::test_onewifi_service_status -v
 #### Run Tests Matching a Pattern
 
 ```bash
-pytest -k "ssid" -v --html=TestRun_
+pytest -k "ssid" -v --html=Reports/sanity_report.html --self-contained-html
 ```
 
 #### Run Tests in Parallel
@@ -241,7 +304,7 @@ pytest -k "ssid" -v --html=TestRun_
 # Install first:
 pip install pytest-xdist
 
-pytest -v -n 4 --html=TestRun_
+pytest -v -n 4 --html=Reports/sanity_report.html --self-contained-html
 ```
 
 ## Expected Outputs
@@ -282,7 +345,7 @@ FAIL: No fronthaul AP BSSIDs are visible on client for SSID test-ssid
 
 ### HTML Report
 
-A comprehensive HTML report is generated at: **TestRun_**
+A comprehensive HTML report is generated at the path passed to --html.
 
 #### Report Contents
 
@@ -303,7 +366,7 @@ A comprehensive HTML report is generated at: **TestRun_**
 
 ```text
 UI_Automation/
-	TestRun_/
+	TestRun_YYYYMMDD_HHMMSS/
 		Screenshots/
 			rdkbcli_updated_ssid.png
 			rdkbcli_wifi_reset_custom_values.png
@@ -312,6 +375,8 @@ UI_Automation/
 		Reports/
 			sanity_report.html
 ```
+
+Note: Screenshots are stored under TEST_RUN_DIR/Screenshots when TEST_RUN_DIR is set, otherwise under an auto-created TestRun_ timestamp directory.
 
 ## Troubleshooting
 
@@ -323,7 +388,7 @@ UI_Automation/
 
 **Solutions:**
 
-1. Verify device IP addresses are correctly configured in conftest.py.
+1. Verify device IP addresses are correctly configured in config.yaml.
 2. Ensure devices are reachable on the network.
 3. Check SSH credentials (username/password) are correct.
 4. Verify network connectivity and firewall rules allow SSH (port 22).
@@ -335,8 +400,8 @@ UI_Automation/
 
 **Solutions:**
 
-1. Reinstall Playwright browsers using `playwright install chromium`.
-2. Install with system dependencies using `playwright install --with-deps`.
+1. Reinstall Playwright browsers using playwright install chromium.
+2. Install with system dependencies using playwright install --with-deps.
 
 #### Database Query Failures
 
@@ -344,7 +409,7 @@ UI_Automation/
 
 **Solutions:**
 
-1. Verify database credentials in conftest.py are correct.
+1. Verify database credentials in config.yaml are correct.
 2. Check database user permissions and privileges.
 3. Verify database service is running on the device.
 4. Check database connectivity and network access from controller.
@@ -383,11 +448,11 @@ UI_Automation/
 ## Support and Documentation
 
 - Check test output logs in console.
-- Review HTML report at TestRun_.
+- Review HTML report at the path passed in --html.
 - Examine screenshots in Screenshots directory.
 - Verify device connectivity with SSH commands.
-- Review conftest.py for configuration options.
+- Review config.yaml for testbed configuration options.
 
-**Last Updated:** April 2026  
-**Version:** 1.1  
+**Last Updated:** May 2026  
+**Version:** 1.2  
 **Maintained by:** TDKB Test Automation Team
