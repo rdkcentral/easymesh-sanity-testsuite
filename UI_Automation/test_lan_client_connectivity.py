@@ -19,7 +19,6 @@ import pytest
 import utils
 from utils import print_step, print_error, print_success
 
-#@pytest.mark.skip(reason="Feature to be tested with LAN client device")
 def test_lan_client_connectivity(config, request, ssh):
     print_step("Entering Test1: test_lan_client_connectivity")    
     lan_client_list = list(config.get("lan_clients", {}).keys())

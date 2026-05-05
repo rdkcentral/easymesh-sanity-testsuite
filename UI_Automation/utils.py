@@ -101,7 +101,7 @@ def wifi_reset_dialog_handler(dialog):
         print_success(f"Dialog Message:\n{msg}")
         dialog.accept()
     else:
-        print(f"Dialog Message:\n{msg}")
+        print(f"Dialog Message: {msg}")
         pytest.fail("Error in handling the Wi-Fi reset confirmation dialog.")
 
 def get_reset_json_data(config, ssh):
@@ -187,7 +187,7 @@ def verify_client_ip_and_internet(client_ip, client_user, client_pass, ssh, step
         if not client_ip:
             pytest.fail(f"Client interface '{client_wifi_intf}' did not obtain an IP address from fronthaul network")
         print_success(f"Client obtained IP address on {client_wifi_intf}: {client_ip}")
-        print_step(f"Step {step+1}: Verify internet connectivity from client interface '{client_wifi_intf}' by pinging www.google.com")
+        print_step(f"Step {step}b: Verify internet connectivity from client interface '{client_wifi_intf}' by pinging www.google.com")
         # Step 2: Test internet connectivity using ping via the assigned IP/interface
         client_ping_out = ssh.run_client(client_ip, client_user, client_pass, f"ping -I {client_wifi_intf} -c 5 www.google.com")
         # Fail if ping reports any packet loss

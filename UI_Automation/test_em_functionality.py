@@ -143,6 +143,9 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
     ctrl_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', ctrl_out, re.S)
     if ctrl_match:
         updated_channel_ctrl_device = ctrl_match.group(1)
+    if not agent_match:
+        print_error(request, f"Channel not found in agent output for link ID {link_id}")
+        assert False
     else:
         print_error(request, f"Channel not found in controller output for link ID {link_id}")
     if updated_channel_ctrl_device != new_channel:
@@ -208,7 +211,6 @@ def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
         if db_ssid == default_ssid and db_pass == default_pass:
             print_success(f"{haul_id} DB Data - SSID: {db_ssid} Password: {db_pass}")
             print_success(f"Wi-Fi reset completed successfully for the haul type {haul_id}; the default SSID and password were restored correctly.")
-
         else:
             wifi_reset = False
             if db_ssid != default_ssid:

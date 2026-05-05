@@ -69,9 +69,17 @@ The suite validates:
 
 | Sl.No | Failed test case name | Description | Bug ID |
 | --- | --- | --- | --- |
-| 1 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_default_values | [TDK][AUTO] onewifi_em_ctrl process crash on WiFi Reset from RDKB-CLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-373 |
-| 2 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_custom_values | [TDK][AUTO] WiFi Reset with Custom Values Not Working via rdkbcli | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-418 |
-| 3 | test_em_functionality.py::test_rdkbcli_channel_change_preference | [TDK][AUTO] Intermittent Operating Class changes during Channel Switching via RDKBCLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-424 |
+| 1 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_default_values | onewifi_em_ctrl process crash on WiFi Reset from RDKB-CLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-373 |
+| 2 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_custom_values | WiFi Reset with Custom Values Not Working via rdkbcli | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-418 |
+| 3 | test_em_functionality.py::test_rdkbcli_channel_change_preference | Intermittent Operating Class changes during Channel Switching via RDKBCLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-424 |
+
+### Test suite Execution Pre-requisites 
+
+- The sanity test suite execution requires test setup with 1 Controller, 2 Extenders, 1 LAN client and 1 Wi-Fi client.
+- Mesh backhaul formation must be ensured before running the test suite. If backhaul is not successfully formed, test cases are expected to fail.
+- Please configure the test setup details as directed in 'Configuration' section of this document. Only 1 Extender details need to be configured as part of 'Agent details' in conftest.py.
+- 2 extenders need to be onboarded successfully for running the topology related test 'test_network_topology.py::test_validate_ui_topology'.
+- Please ensure that the setup is in default state or should be set to a default state before triggering the full suite. Only with default state, the 2 test cases 'test_basic_sanity_tc::test_db_values_match_default_json' and 'test_basic_sanity_tc::test_broadcast_default_SSID' will pass.
 
 ### Port Requirements
 
