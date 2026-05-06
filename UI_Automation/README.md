@@ -6,7 +6,7 @@ This folder contains an automated test suite for EasyMesh/RDKB validation using 
 
 | Name | Short Description |
 | --- | --- |
-| conftest.py | Defines shared Pytest fixtures, test-run directory creation, Playwright browser setup, SSH tunneling helpers, environment data, and failure log collection/report hooks. |
+| conftest.py | Defines shared Pytest fixtures, test-run directory creation, Playwright browser setup, YAML config loading and validation, SSH tunneling helpers, environment data, and failure log collection/report hooks. |
 | main.py | Entry-point runner that creates a timestamped test-run folder, sets environment variables, and launches selected Pytest modules with an HTML report output. |
 | test_basic_sanity_tc.py | Covers baseline sanity checks for services, logs, interfaces, SSID broadcast, connectivity, and RDKB-CLI navigation across controller and agent devices. |
 | test_em_functionality.py | Validates EasyMesh feature workflows from UI and backend, including SSID/password updates, channel changes, and Wi-Fi reset behavior against database values. |
@@ -37,27 +37,77 @@ python main.py
 	- `TestRun_<timestamp>/Screenshots/`
 	- `TestRun_<timestamp>/Failed_Logs/`
 
-## Configuration: Fields to Fill in `conftest.py`
+## Configuration
 
-Before running the test suite, update the `global_config` fixture in `conftest.py` with your environment-specific values.
+Before running the test suite, update `config.yaml` in the project root with your environment-specific values. The `config()` fixture in `conftest.py` loads this file with `yaml.safe_load()` and validates the required sections before any SSH-dependent test runs.
 
-### `global_config` Fixture
+### Validation Rules From `conftest.py`
 
-| Variable | Description |
+- The `controller` section must exist and must include non-empty `ip` and `user` values.
+- The `extenders` section must be a YAML mapping. Each extender entry must include non-empty `ip` and `user` values.
+- The `wifi_clients` and `lan_clients` sections, when present, must be YAML mappings.
+
+### `config.yaml` Structure
+
+#### `controller`
+
+| Key | Description |
 | --- | --- |
-| `ctrl_ip` | IP address of the EasyMesh controller device |
-| `ctrl_user` | SSH username for the controller |
-| `ctrl_pass` | SSH password for the controller (leave empty if using key file) |
-| `key_file` | Path to SSH private key file for the controller (or `None` for password auth) |
-| `ext1_ip` | IP address of the extender/agent device |
-| `ext1_user` | SSH username for the extender |
-| `ext1_pass` | SSH password for the extender |
-| `passphrase` | Passphrase for the SSH key file (if applicable) |
-| `client_ip` | IP address of the Wi-Fi client device |
-| `client_user` | SSH username for the Wi-Fi client |
-| `client_pass` | SSH password for the Wi-Fi client |
-| `lan_client_mac` | MAC address of the LAN client device |
-| `lan_client_user` | SSH username for the LAN client |
-| `lan_client_pass` | SSH password for the LAN client |
-| `db_user` | Database username |
-| `db_pass` | Database password |
+| `ip` | IP address of the EasyMesh controller device |
+| `user` | SSH username for the controller |
+| `pass` | SSH password for the controller |
+| `key_file` | Optional SSH private key path placeholder in the YAML template |
+
+#### `extenders`
+
+Each entry under `extenders` represents one agent device, for example `ext1`, `ext2`, and so on.
+
+| Key | Description |
+| --- | --- |
+| `ip` | IP address of the extender or agent |
+| `user` | SSH username for the extender |
+| `pass` | SSH password for the extender |
+| `passphrase` | Optional passphrase placeholder in the YAML template |
+
+#### `wifi_clients`
+
+Each entry under `wifi_clients` represents one Wi-Fi client.
+
+| Key | Description |
+| --- | --- |
+| `ip` | IP address of the Wi-Fi client device |
+| `user` | SSH username for the Wi-Fi client |
+| `pass` | SSH password for the Wi-Fi client |
+
+#### `lan_clients`
+
+Each entry under `lan_clients` represents one wired LAN client.
+
+| Key | Description |
+| --- | --- |
+| `mac` | MAC address of the LAN client device |
+| `user` | SSH username for the LAN client |
+| `pass` | SSH password for the LAN client |
+
+#### `database`
+
+| Key | Description |
+| --- | --- |
+| `name` | Database name used by the test suite |
+| `user` | Database username |
+| `pass` | Database password |
+| `ssid_table` | Database table containing SSID data |
+
+#### `system`
+
+| Key | Description |
+| --- | --- |
+| `bridge_intf` | Bridge interface used in device-side checks |
+| `wifi_reset_interface` | Interface used for Wi-Fi reset traffic capture or validation |
+| `reset_json_file` | Path to the EasyMesh reset JSON file on the target system |
+
+### Notes
+
+- `conftest.py` currently connects to the controller and extenders with password-based Paramiko SSH sessions.
+- Extender and client SSH sessions are opened through the controller using Paramiko direct TCP/IP channels.
+- If `TEST_RUN_DIR` is set by `main.py`, reports and screenshots are created there; otherwise Pytest creates a fallback `TestRun_<timestamp>` directory automatically.

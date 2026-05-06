@@ -1,20 +1,20 @@
 controller:
   ip: ""
   user: ""
-  pass: ""
+  pass: None
   key_file: null
 
 extenders:
   ext1:
     ip: ""
     user: ""
-    pass: ""
-    passphrase: ""
+    pass: None
+    passphrase: None
   ext2:
     ip: ""
     user: ""
-    pass: ""
-    passphrase: ""
+    pass: None
+    passphrase: None
     
 wifi_clients:
   client1:

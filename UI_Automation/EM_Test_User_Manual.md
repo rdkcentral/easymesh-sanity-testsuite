@@ -148,20 +148,20 @@ Update UI_Automation/config.yaml with your setup details:
 controller:
   ip: "<controller_ip>"
   user: "<controller_username>"
-  pass: "<controller_password>"
+  pass: None
   key_file: null
 
 extenders:
   ext1:
     ip: "<agent1_ip>"
     user: "<agent1_username>"
-    pass: "<agent1_password>"
-    passphrase: ""
+    pass: None
+    passphrase: None
   ext2:
     ip: "<agent2_ip>"
     user: "<agent2_username>"
-    pass: "<agent2_password>"
-    passphrase: ""
+    pass: None
+    passphrase: None
 
 wifi_clients:
   client1:
@@ -190,13 +190,11 @@ system:
 ### Supported Keys and Validation Notes
 
 - controller.ip and controller.user are validated as required.
-- controller.pass is required for SSH login during runtime commands.
 - extenders must be a YAML mapping. Each extender requires ip and user; pass is required for SSH login.
-- wifi_clients and lan_clients are optional mappings. Configure them when running Wi-Fi and LAN client tests.
+- Configure wifi_clients and lan_clients when running Wi-Fi and LAN client tests.
 - lan_clients.<name>.mac is required for LAN connectivity validation.
 - database.name, database.user, database.pass, and database.ssid_table are used by DB queries.
 - system.bridge_intf, system.wifi_reset_interface, and system.reset_json_file are used by topology and Wi-Fi reset flows.
-- controller.key_file and extenders.<name>.passphrase are present in the template but are not currently consumed by the active UI_Automation test flow.
 
 ### Device Scaling
 
