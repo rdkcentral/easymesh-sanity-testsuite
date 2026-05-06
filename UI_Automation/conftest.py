@@ -30,7 +30,6 @@ import yaml
 BASE_DIR = Path(__file__).resolve().parent
 screenshots_path = None
 reports_path = None
-failure_logs_path = None
 
 global intf
 intf = "eth0_virt_peer"
@@ -74,7 +73,6 @@ M2_TYPE = 0x05
 @pytest.fixture(scope="session", autouse=True)
 def test_run_dirs():
     global screenshots_path, reports_path
-    #global failure_logs_path
     #Read from environment (set by main.py)
     run_dir_env = os.environ.get("TEST_RUN_DIR")
     if run_dir_env:
@@ -85,14 +83,11 @@ def test_run_dirs():
         run_dir = BASE_DIR / f"TestRun_{timestamp}"
     screenshots_path = run_dir / "Screenshots"
     reports_path = run_dir / "Reports"
-    #failure_logs_path = run_dir / "Failed_Logs"
     network_topology_screenshot_path = BASE_DIR / "Network_topology_screenshots"
     #Create all directories
-    #for path in [screenshots_path, reports_path, failure_logs_path]:
     for path in [screenshots_path, reports_path]:
         path.mkdir(parents=True, exist_ok=True)
     print(f"\n[INFO] Using Test Run Directory: {run_dir}\n")
-    #"logs": failure_logs_path
     return {
         "run_dir": run_dir,
         "screenshots": screenshots_path,
@@ -157,6 +152,9 @@ DB_DEFAULT_DATA = [
     {"haul_id": "Backhaul", "default_ssid": "mesh_backhaul", "default_pass": "test-backhaul"},
     {"haul_id": "Hotspot", "default_ssid": "hotspot", "default_pass": "test-hotspot"}
 ]
+
+#convert the DB_DEFAULT_DATA list to dictionary
+DB_DEFAULT_MAP_DICT = {e["haul_id"]: e for e in DB_DEFAULT_DATA}
 
 WIFI_RESET_CONFIG = [
     {"haul_id": "Fronthaul", "custom_ssid": "new-fronthaul-ssid", "custom_pass": "new-fronthaul-pass"},
