@@ -33,6 +33,6 @@ def stop_packet_capture(ssh, pid):
     print_success(f"Packet capture stopped for PID {pid}.")
 
 def transfer_capfile_from_device(ssh, remote_file_location, local_file_location):
-    ret = ssh.download_from_controller(remote_file_location, local_file_location)
+    ret = ssh.download_logfiles_from_controller(remote_file_location, local_file_location)
     print_success(f"Captured file transferred from device: {remote_file_location} to local machine: {local_file_location}")
     return ret

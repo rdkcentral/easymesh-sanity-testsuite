@@ -25,6 +25,7 @@ import time
 from scp import SCPClient
 import datetime
 import os
+import yaml
 
 BASE_DIR = Path(__file__).resolve().parent
 screenshots_path = None
@@ -72,7 +73,8 @@ M2_TYPE = 0x05
 
 @pytest.fixture(scope="session", autouse=True)
 def test_run_dirs():
-    global screenshots_path, reports_path, failure_logs_path
+    global screenshots_path, reports_path
+    #global failure_logs_path
     #Read from environment (set by main.py)
     run_dir_env = os.environ.get("TEST_RUN_DIR")
     if run_dir_env:
@@ -83,17 +85,18 @@ def test_run_dirs():
         run_dir = BASE_DIR / f"TestRun_{timestamp}"
     screenshots_path = run_dir / "Screenshots"
     reports_path = run_dir / "Reports"
-    failure_logs_path = run_dir / "Failed_Logs"
+    #failure_logs_path = run_dir / "Failed_Logs"
     network_topology_screenshot_path = BASE_DIR / "Network_topology_screenshots"
     #Create all directories
-    for path in [screenshots_path, reports_path, failure_logs_path]:
+    #for path in [screenshots_path, reports_path, failure_logs_path]:
+    for path in [screenshots_path, reports_path]:
         path.mkdir(parents=True, exist_ok=True)
     print(f"\n[INFO] Using Test Run Directory: {run_dir}\n")
+    #"logs": failure_logs_path
     return {
         "run_dir": run_dir,
         "screenshots": screenshots_path,
-        "reports": reports_path,
-        "logs": failure_logs_path,
+        "reports": reports_path,        
         "network_topology_screenshots": network_topology_screenshot_path
     }
 
@@ -101,34 +104,45 @@ def test_run_dirs():
 def paths(test_run_dirs):
     return test_run_dirs
 
-@pytest.fixture(scope="session", autouse=True)
-def global_config(request):
-    #Controller details
-    request.session.ctrl_ip = ""
-    request.session.ctrl_user = ""
-    request.session.ctrl_pass = ""
-    request.session.key_file = None
-    #Extender details
-    request.session.ext1_ip = ""
-    request.session.ext1_user = ""
-    request.session.ext1_pass = ""
-    request.session.passphrase = ""
-    #Wi-Fi client details
-    request.session.client_ip = ""
-    request.session.client_user = ""
-    request.session.client_pass = ""
-    request.session.bridge_intf ="brlan0"
-    #LAN client details
-    request.session.lan_client_mac = ""
-    request.session.lan_client_user = ""
-    request.session.lan_client_pass = ""
-    #Database details
-    request.session.easy_mesh_db = "OneWifiMesh"
-    request.session.db_user = ""
-    request.session.db_pass = ""
-    request.session.network_ssid_list_db_table = "NetworkSSIDList"
-    request.session.wifi_reset_interface = "eth0_virt_peer"
-    request.session.reset_json_file = "/usr/ccsp/EasyMesh/Reset.json"
+def validate_config(cfg):
+    if not cfg:
+        raise ValueError("Config file is empty or invalid")
+    # ---- Controller ----
+    ctrl = cfg.get("controller")
+    if not ctrl:
+        raise ValueError("Missing 'controller' section")
+    for field in ["ip", "user"]:
+        if not ctrl.get(field):
+            raise ValueError(f"Controller missing required field: {field}")
+    # ---- Extenders ----
+    extenders = cfg.get("extenders", {})
+    if not isinstance(extenders, dict):
+        raise ValueError("'extenders' must be a dictionary (YAML mapping)")
+    for name, ext in extenders.items():
+        if not ext.get("ip"):
+            raise ValueError(f"Extender '{name}' missing IP")
+        if not ext.get("user"):
+            raise ValueError(f"Extender '{name}' missing user")
+    # ---- Clients ----
+    for group in ["wifi_clients", "lan_clients"]:
+        clients = cfg.get(group, {})
+        if clients and not isinstance(clients, dict):
+            raise ValueError(f"'{group}' must be a dictionary")
+
+@pytest.fixture(scope="session")
+def config():
+    filename = BASE_DIR / "config.yaml"
+    try:
+        with open(filename, "r") as f:
+            data = yaml.safe_load(f)
+        validate_config(data)
+        return data
+    except FileNotFoundError:
+        pytest.fail(f"Config file not found: {filename}")
+    except ValueError as e:
+        pytest.fail(f"Config validation error: {e}")
+    except Exception as e:
+        pytest.fail(f"Unexpected error loading config: {e}")
 
 RADIO_CONFIG = [
     {"link_id": 0, "radio": "2_4ghz", "ui_tab": "2_4g", "channel": "10"},
@@ -182,76 +196,80 @@ def page(context):
     page.close()
 
 class SSHManager:
-    def __init__(self, request):
-        self.req = request.session
+    def __init__(self, config):
+        self.config = config
         self.controller = None
-        self.agent = None
+        self.extenders = {}  # <-- multiple agents
 
-    # ---------- Controller + Agent ----------
+    # ---------- Connect ----------
     def connect(self):
+        # ---- Controller ----
+        ctrl = self.config["controller"]
+
         self.controller = paramiko.SSHClient()
         self.controller.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        connect_args = dict(
-            hostname=self.req.ctrl_ip,
-            username=self.req.ctrl_user,
+        self.controller.connect(
+            hostname=ctrl["ip"],
+            username=ctrl["user"],
+            password=ctrl["pass"],
             timeout=20,
             banner_timeout=60,
-            auth_timeout=30
+            auth_timeout=30,
         )
 
-        if self.req.key_file:
-            connect_args["key_filename"] = self.req.key_file
-        else:
-            connect_args["password"] = self.req.ctrl_pass
-
-        self.controller.connect(**connect_args)
-
-        # ---------- Tunnel to Agent ----------
+        # ---- Extenders (via tunnel) ----
         transport = self.controller.get_transport()
 
-        agent_channel = transport.open_channel(
-            "direct-tcpip",
-            (self.req.ext1_ip, 22),
-            ("127.0.0.1", 0),
-        )
+        for name, ext in self.config.get("extenders", {}).items():
+            channel = transport.open_channel(
+                "direct-tcpip",
+                (ext["ip"], 22),
+                ("127.0.0.1", 0),
+            )
 
-        self.agent = paramiko.SSHClient()
-        self.agent.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        self.agent.connect(
-            hostname=self.req.ext1_ip,
-            username=self.req.ext1_user,
-            password=self.req.ext1_pass,
-            sock=agent_channel,
-            timeout=20,
-            banner_timeout=60,
-        )
+            client.connect(
+                hostname=ext["ip"],
+                username=ext["user"],
+                password=ext["pass"],
+                sock=channel,
+                timeout=20,
+                banner_timeout=60,
+            )
 
-    # ---------- Generic execute ----------
+            self.extenders[name] = client  # store by name
+
+    # ---------- Execute ----------
     def _execute(self, client, command, sudo_password=None):
         stdin, stdout, stderr = client.exec_command(command, get_pty=True)
-        # Send sudo password if required
+
         if sudo_password:
             stdin.write(sudo_password + "\n")
             stdin.flush()
+
         out = stdout.read().decode(errors="ignore")
         err = stderr.read().decode(errors="ignore")
-        # Remove password if echoed (safety cleanup)
+
         if sudo_password:
             out = out.replace(sudo_password, "")
-        out = out.strip()
-        err = err.strip()
+
         if "Error" in err or "failed" in err.lower():
             pytest.fail(f"Fail: Error executing command: {err}")
-        return out
 
-    # ---------- Controller/Agent run ----------
+        return out.strip()
+
+    # ---------- Run ----------
     def run(self, target, command, sudo_password=None):
-        client = {
-            "controller": self.controller,
-            "agent": self.agent
-        }[target]
+        if target == "controller":
+            client = self.controller
+        else:
+            client = self.extenders.get(target)
+
+        if not client:
+            pytest.fail(f"Unknown device: {target}")
 
         return self._execute(client, command, sudo_password)
 
@@ -321,84 +339,19 @@ class SSHManager:
             except Exception as e:
                 print(f"[LOG ERROR] Failed processing {remote_path}: {e}")
 
-    def copy_agent_logs_to_controller(self, agent_paths, controller_dir="/tmp"):
-        if not self.controller or not self.agent:
-            raise RuntimeError("SSH connections not established")        
-        for remote_path in agent_paths:
-            filename = os.path.basename(remote_path)
-            dest_path = f"{controller_dir}/{filename}"
-            try:
-                # Check if file exists on agent
-                stdin, stdout, stderr = self.agent.exec_command(f"test -f {remote_path} && echo EXISTS || echo MISSING")
-                result = stdout.read().decode().strip()
-                if result != "EXISTS":
-                    print(f"[AGENT INFO] Missing: {remote_path}")
-                    continue
-                # Copy agent -> controller (runs on controller)
-                scp_cmd = (f"scp -o StrictHostKeyChecking=no "f"{self.req.ext1_user}@{self.req.ext1_ip}:{remote_path} {dest_path}")
-                stdin, stdout, stderr = self.controller.exec_command(scp_cmd)
-                exit_code = stdout.channel.recv_exit_status()
-                if exit_code == 0:
-                    print(f"[AGENT -> CTRL] {remote_path} -> {dest_path}")
-                else:
-                    err = stderr.read().decode()
-                    print(f"[AGENT ERROR] SCP failed: {err}")
-            except Exception as e:
-                print(f"[AGENT ERROR] Failed copying {remote_path}: {e}")
-
-    # ---------- Cleanup ----------    
+    # ---------- Cleanup ----------
     def close(self):
-        for c in [self.agent, self.controller]:
-            if c:
-                c.close()
+        if self.controller:
+            self.controller.close()
+        for client in self.extenders.values():
+            client.close()
 
 @pytest.fixture(scope="session")
-def ssh(request):
-    manager = SSHManager(request)
+def ssh(config):
+    manager = SSHManager(config)
     manager.connect()
     yield manager
     manager.close()
-
-@pytest.fixture(autouse=True)
-def collect_device_logs_on_failure(request, ssh):
-    """
-    Runs after each test.
-    If test fails:
-        - Creates a folder with test name + timestamp
-        - Copies predefined device logs into that folder
-    """
-    yield  # Run the test first
-    report = getattr(request.node, "rep_call", None)
-    if report and report.failed:
-        test_name = request.node.name
-        # Unique folder to avoid overwrite
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        test_dir = os.path.join(f"{failure_logs_path}", f"{test_name}_{timestamp}")
-        agent_test_dir = os.path.join(test_dir, "Agent_Logs")
-        os.makedirs(agent_test_dir, exist_ok=True)
-        controller_logs = ["/tmp/ieee1905_agent_log.txt", "/tmp/ieee1905_ctrl_log.txt", "/tmp/em_agent.log", "/tmp/em_cli.log", "/tmp/em_ctrl.log", "/rdklogs/logs/WiFilog.txt.0", "/rdklogs/logs/WiFilog.txt.1", "/rdklogs/logs/wifiCtrl.txt", "/rdklogs/logs/wifiDMCLI.txt", "/rdklogs/logs/wifiEM.txt", "/rdklogs/logs/wifiHal.txt", "/rdklogs/logs/wifiHalStats.txt", "/rdklogs/logs/wifiMgr.txt"]
-        agent_logs = ["/tmp/ieee1905_agent_log.txt", "/tmp/em_agent.log", "/rdklogs/logs/WiFilog.txt.0", "/rdklogs/logs/WiFilog.txt.1", "/rdklogs/logs/wifiCtrl.txt", "/rdklogs/logs/wifiDMCLI.txt", "/rdklogs/logs/wifiEM.txt", "/rdklogs/logs/wifiHal.txt", "/rdklogs/logs/wifiHalStats.txt", "/rdklogs/logs/wifiMgr.txt", "/rdklogs/logs/emAgent.txt"]
-        try:
-            #Step 1: Copy agent logs to controller (/tmp)
-            ssh.copy_agent_logs_to_controller(agent_logs, "/tmp")
-            #Step 2: Download controller logs
-            for remote_path in controller_logs:
-                filename = os.path.basename(remote_path)
-                local_path = os.path.join(test_dir, filename)
-                try:
-                    ssh.download_logfiles_from_controller(remote_path, local_path)
-                except Exception as e:
-                    print(f"[CTRL ERROR] {remote_path}: {e}")
-            #Step 3: Download staged agent logs from controller
-            for remote_path in agent_logs:
-                staged_path = f"/tmp/{os.path.basename(remote_path)}"
-                local_path = os.path.join(agent_test_dir, os.path.basename(remote_path))
-                try:
-                    ssh.download_logfiles_from_controller(staged_path, local_path)
-                except Exception as e:
-                    print(f"[AGENT ERROR] {staged_path}: {e}")
-        except Exception as e:
-            print(f"[LOG ERROR] Failure in log collection: {e}")
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):

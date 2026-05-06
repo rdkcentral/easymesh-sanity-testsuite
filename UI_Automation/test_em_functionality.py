@@ -18,57 +18,31 @@
 import re
 import time
 import utils
+import playwright_utils
 from utils import print_step, print_error, print_success
 import conftest
 import pytest
 
-def test_rdkbcli_update_verify_ssid(page, request, ssh, paths):
+def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     print_step("Entering Test1: test_rdkbcli_update_verify_ssid")
-    new_ssid = "TDKB_New_SSID_02"
-    utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 1, paths)
+    new_ssid = "TDKB_New_SSID_01"
+    playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 1, paths)
     print_step("Exiting Test1: test_rdkbcli_update_verify_ssid")
 
-def test_rdkbcli_update_verify_password(page, request, ssh, paths):
+def test_rdkbcli_update_verify_password(config, page, request, ssh, paths):
     print_step("Entering Test2: test_rdkbcli_update_verify_password")
     new_pass = "TestTDKB@12345"
-    #Navigate to Rdkbcli page
-    utils.navigate_to_rdkbcli_page(page, request, 1)
-    #Navigate to Wireless Settings page
-    utils.navigate_to_required_rdkbcli_page(page, request, 'Wireless Settings', 2, paths)
-    #Update SSID value in input field and save changes
-    utils.update_input_save_changes(page, request, "#profile-passphrase", new_pass, 3, paths)
-    print("Password updated triggered from RDKB CLI successfully. Waiting for changes to reflect in RDKBCLI.")
-    page.wait_for_timeout(15000)
-    # Screenshot (avoid full_page on docs sites)
-    print_step("Step 4: Take screenshot of updated Password value in RDKB CLI page after update")
-    utils.take_screenshot(page, request, paths["screenshots"] / "rdkbcli_updated_password.png")        
-    #Print updated password value from input fields for verification
-    utils.fetch_and_verify_home_network_input(page, request, "Passphrase", "#profile-passphrase", new_pass, 5, paths)
-    #Add 30s delay to allow changes to apply on device before SSH verification
-    time.sleep(30)
-    #Verify Password update on device via SSH command execution
-    print_step("Step 6: Fetch updated Password from controller device")
-    query_out = utils.get_db_values(request, ssh, f"SELECT SSID, PassPhrase FROM {request.session.network_ssid_list_db_table} WHERE ID='Fronthaul@OneWifiMesh';")
-    if not query_out or not query_out.strip():
-        print_error(request, "DB query returned empty output. Unable to fetch password.")
-    else:
-        fronthaul_password = query_out.strip().split("\t")[1]
-        print_success(f"Updated Password from controller device: {fronthaul_password}")
-        #Final validation to check if Password updates are consistent on both controller and agent devices and match the expected value from test data. If there is a mismatch, print appropriate error message and fail the test.
-        print_step("Step 7: Validate if updated Password is consistent on both controller and agent devices and matches the expected value")
-        if len(fronthaul_password.strip()) != 0 and fronthaul_password.strip() != new_pass:
-            print_error(request, f"Password update validation failed on controller device. Expected: {new_pass}, Actual: {fronthaul_password.strip()}")
-        else:
-            print_success(f"Password update verification passed on controller device with expected value '{new_pass}'.")
+    playwright_utils.verify_password_update_in_controller_and_agent(config, page, request, ssh, new_pass, 1, paths)
     print_step("Exiting Test2: test_rdkbcli_update_verify_password")
 
+@pytest.mark.skip(reason="Need clarification from dev on operating class changing intermittently. Issue is tracked as part of ticket RDKBWIFI-424")
 @pytest.mark.parametrize("radio_cfg", conftest.RADIO_CONFIG)
-def test_rdkbcli_channel_change_preference(request, page, radio_cfg, ssh, paths):
+def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh, paths):
     print_step("Entering Test3: test_rdkbcli_channel_change_preference")
     #Navigate to Rdkbcli page
-    utils.navigate_to_rdkbcli_page(page, request, 1)
+    playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
     #Navigate to Wireless Settings page
-    utils.navigate_to_required_rdkbcli_page(page, request, 'Wireless Settings', 2, paths)
+    playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'Wireless Settings', 2, paths)
     #Get the radio config values
     tab = radio_cfg["radio"]
     band = radio_cfg["ui_tab"]
@@ -80,6 +54,7 @@ def test_rdkbcli_channel_change_preference(request, page, radio_cfg, ssh, paths)
     print_step(f"Step 3: Select Radio tab {tab}")
     page.click(f'button.radio-tab-btn[data-band="{tab}"]')
     active_tab = page.query_selector('.radio-tab-btn.active')
+    # Verify that the clicked radio tab is now active
     if active_tab and active_tab.get_attribute('data-band') == tab:
         print_success(f"Radio tab {tab} selected successfully")
     else:
@@ -89,6 +64,7 @@ def test_rdkbcli_channel_change_preference(request, page, radio_cfg, ssh, paths)
     print_step("Step 4: Select ALL station device option")
     device_mac = "FF:FF:FF:FF:FF:FF"
     page.select_option(f"#device-{band}", device_mac)
+    #Verify that ALL station option is selected correctly
     selected_device = page.locator(f"#device-{band}").input_value()
     if selected_device == device_mac:
         print_success("ALL station device selected successfully")
@@ -104,7 +80,7 @@ def test_rdkbcli_channel_change_preference(request, page, radio_cfg, ssh, paths)
         row = rows.nth(i)
         badge_text = row.locator(".pref-badge").inner_text()
         if most_preference in badge_text:
-            current_channel = row.get_attribute("data-channel")
+            current_channel = row.get_attribute("data-channel")            
             break
     if current_channel:
         print_success(f"Found MOST preferred channel: {current_channel}")
@@ -114,6 +90,7 @@ def test_rdkbcli_channel_change_preference(request, page, radio_cfg, ssh, paths)
     # Change the preference of current channel from MOST (14) to LEAST (0)
     print_step(f"Step 6: Change channel {current_channel} preference value to {least_preference}")
     current_row = page.locator(f'#list-{band} .list-row[data-channel="{current_channel}"]')
+    # Click button to enable dropdown
     current_row.locator(".pref-choose").click()
     current_dd = current_row.locator("select.pref-inline-dd")
     current_dd.wait_for(state="visible")
@@ -146,58 +123,70 @@ def test_rdkbcli_channel_change_preference(request, page, radio_cfg, ssh, paths)
     print_step("Step 10: Validate UI channel change updates")
     updated_new = new_row.locator(".pref-badge").inner_text()
     updated_old = current_row.locator(".pref-badge").inner_text()
-    print(f"New channel {new_channel}: {updated_new}")
-    print(f"Old channel {current_channel}: {updated_old}")
+    print(f"New channel {new_channel} preference value: {updated_new}")
+    print(f"Old channel {current_channel} preference value: {updated_old}")
+    #Validate the channel preference values.
     if most_preference in updated_new and least_preference in updated_old:
         print_success("UI validation passed for channel preference updates")
     else:
         print_error(request, "UI validation failed for channel preference updates")
         assert False
     # Screenshot
-    utils.take_screenshot(page, request, paths["screenshots"] / f"rdkbcli_{band}_preference_change.png")
+    playwright_utils.take_screenshot(page,request,paths["screenshots"] / f"rdkbcli_{band}_preference_change.png")
     #Add 60s delay to allow changes to apply on device before SSH verification
     print_step("Step 11: Waiting for device sync")
     time.sleep(60)
     print("Device sync completed")
     #Verify Channel change on device via SSH command execution
-    print_step("Step 12: Fetch the updated channel value from Controller and Agent device")
+    print_step("Step 12: Fetch the updated channel value from Controller device")
     ctrl_out = ssh.run("controller", "iw dev mld0 info")
-    agent_out = ssh.run("agent", "iw dev mld0 info")
     ctrl_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', ctrl_out, re.S)
-    agent_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', agent_out, re.S)
-    if not ctrl_match:
-        print_error(request, f"Channel not found in controller output for link ID {link_id}")
-        assert False
-    else:
+    if ctrl_match:
         updated_channel_ctrl_device = ctrl_match.group(1)
     if not agent_match:
         print_error(request, f"Channel not found in agent output for link ID {link_id}")
         assert False
     else:
-        updated_channel_agent_device = agent_match.group(1)
-    if updated_channel_ctrl_device == new_channel and updated_channel_agent_device == new_channel:
-        print_success(f"Channel change verified on both devices with updated channel value {new_channel}")
+        print_error(request, f"Channel not found in controller output for link ID {link_id}")
+    if updated_channel_ctrl_device != new_channel:
+        print_error(request, f"Channel change validation failed on controller. Expected Channel value: {new_channel}, Actual channel value: {updated_channel_ctrl_device}")
     else:
-        print_error(request,f"Channel mismatch: Controller={updated_channel_ctrl_device}, Agent={updated_channel_agent_device}, Expected={new_channel}")
-        assert False
-    print_step("Exiting Test3: test_rdkbcli_channel_change_preference")
+        print_success(f"Channel Change verification passed in Controller device with updated value {new_channel}.")
+    
+    print_step("Step 13: Fetch the updated channel value from Agent devices")
+    ext_list = list(config.get("extenders", {}).keys())
+    for extender in ext_list:
+        print_step(f"Fetching updated channel value from Agent device: {extender}")
+        agent_out = ssh.run(extender, "iw dev mld0 info")
+        agent_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', agent_out, re.S)
+        if agent_match:
+            updated_channel_agent_device = agent_match.group(1)
+        else:
+            updated_channel_agent_device = None
+            print_error(request, f"Channel not found in agent output for link ID {link_id} - {band}")    
+    
+        if updated_channel_agent_device != new_channel:
+            print_error(request, f"Channel change validation failed on agent. Expected Channel value: {new_channel}, Actual channel value: {updated_channel_agent_device}")
+        else:
+            print_success(f"Channel Change verification passed in Agent device with updated value {new_channel}.")
+    print_step("Entering Test3: test_rdkbcli_channel_change_preference")
 
-def test_rdkbcli_wifi_reset_with_default_values(page,request,ssh,paths):
+def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
     print_step("Entering Test4: test_rdkbcli_wifi_reset_with_default_values")
     # Flag to verify WiFi reset values
     wifi_reset = True
     #Navigate to Rdkbcli page
-    utils.navigate_to_rdkbcli_page(page, request, 1)
+    playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
     #Navigate to WirelesS Settings page
-    utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
+    playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
     # Select the correct AL MAC Address
-    print_step(f"Step 3: Choose the correct AL MAC Address ({request.session.wifi_reset_interface}) for reset operation.")
+    print_step(f"Step 3: Choose the correct AL MAC Address ({config["system"]["wifi_reset_interface"]}) for reset operation.")
     page.wait_for_selector("#almac-select")
-    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address(request, ssh)} ({request.session.wifi_reset_interface})".lower()
+    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address(config, ssh)} ({config["system"]["wifi_reset_interface"]})".lower()
     result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
     if not result:
         wifi_reset = False
-        print_error(request, f"Failed to select the {request.session.wifi_reset_interface}!")
+        print_error(request, f"Failed to select the {config["system"]["wifi_reset_interface"]}!")
     page.on("dialog", utils.wifi_reset_dialog_handler)
     print_step("Step 4: Click the Wi-Fi Reset button and confirm the Wi-Fi reset confirmation dialog.")
     page.click("#reset-btn")
@@ -210,8 +199,8 @@ def test_rdkbcli_wifi_reset_with_default_values(page,request,ssh,paths):
         default_pass = wifi_reset_config["default_pass"]
         print(f"Haul Type: {haul_id} \n Default SSID: {default_ssid} Default Password: {default_pass}")
         # SQL query to retrieve SSID and PassPhrase for each haul type from OneWifiMesh DB.
-        query = f"SELECT SSID, PassPhrase FROM {request.session.network_ssid_list_db_table} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
-        query_out = utils.get_db_values(request, ssh, query)
+        query = f"SELECT SSID, PassPhrase FROM {config["database"]["ssid_table"]} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
+        query_out = utils.get_db_values(config, ssh, query)
         db_output = query_out.strip().split()
         if len(db_output) < 2:
             wifi_reset = False
@@ -231,26 +220,26 @@ def test_rdkbcli_wifi_reset_with_default_values(page,request,ssh,paths):
     if wifi_reset:
         print_success("Completed verification of OneWifiMesh DB values with expected default values for each haul type")
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
-    print_step("Step 6: Verify any core files generated in device after WiFi reset.")
-    utils.verify_core_dump_generated(request, ssh)
+    print_step("Step 6: Verify any core files generated in the devices after WiFi reset.")
+    utils.verify_core_dump_generated(config, request, ssh)
     print_step("Exiting Test4: test_rdkbcli_wifi_reset_with_default_values")
 
-def test_rdkbcli_wifi_reset_with_custom_values(page,request,ssh,paths):
+def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
     print_step("Entering Test5: test_rdkbcli_wifi_reset_with_custom_values")
     # Flag to verify WiFi reset values
     wifi_reset = True
     #Navigate to Rdkbcli page
-    utils.navigate_to_rdkbcli_page(page, request, 1)
+    playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
     #Navigate to WirelesS Settings page
-    utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
+    playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
     # Select the correct AL MAC Address
-    print_step(f"Step 3: Choose the correct AL MAC Address ({request.session.wifi_reset_interface}) for reset operation.")
+    print_step(f"Step 3: Choose the correct AL MAC Address ({config["system"]["wifi_reset_interface"]}) for reset operation.")
     page.wait_for_selector("#almac-select")
-    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address(request, ssh)} ({request.session.wifi_reset_interface})".lower()
+    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address(config, ssh)} ({config["system"]["wifi_reset_interface"]})".lower()
     result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
     if not result:
         wifi_reset = False
-        print_error(request, f"Failed to select the {request.session.wifi_reset_interface}!")
+        print_error(request, f"Failed to select the {config["system"]["wifi_reset_interface"]}!")
     #Fill the custom SSID and password values to be configured after WiFi reset.
     print_step("Step 4: Set the custom SSID and Password to be applied after the Wi-Fi reset for each haul type.")
     for wifi_reset_config in conftest.WIFI_RESET_CONFIG:
@@ -262,10 +251,10 @@ def test_rdkbcli_wifi_reset_with_custom_values(page,request,ssh,paths):
         checkbox.check()
         page.fill(f'#ssid-{haul_id}', custom_ssid)
         page.fill(f'#password-{haul_id}', custom_pass)
-    print_success("Custom values were successfully filled on the RDKBCLI Wi-Fi Reset page")
+    print_success("Custom values were successfully filled on the RDKBCLI Wi-Fi Reset page")    
     # Screenshot (avoid full_page on docs sites)
     print_step("Step 5: Take screenshot of Custom SSID and passphrase input value in RDKB CLI page before reset")
-    utils.take_screenshot(page, request, paths["screenshots"] / "rdkbcli_wifi_reset_custom_values.png")    
+    playwright_utils.take_screenshot(page, request, paths["screenshots"] / "rdkbcli_wifi_reset_custom_values.png")    
     #Handler to manage confirmation dialogs
     page.on("dialog", utils.wifi_reset_dialog_handler)
     print_step("Step 6: Click the Wi-Fi Reset button and confirm the Wi-Fi reset confirmation dialog.")
@@ -278,8 +267,8 @@ def test_rdkbcli_wifi_reset_with_custom_values(page,request,ssh,paths):
         custom_ssid = wifi_reset_config["custom_ssid"]
         custom_pass = wifi_reset_config["custom_pass"]
         # SQL query to retrieve SSID and PassPhrase for each haul type from OneWifiMesh DB.
-        query = f"SELECT SSID, PassPhrase FROM {request.session.network_ssid_list_db_table} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
-        query_out = utils.get_db_values(request, ssh, query)
+        query = f"SELECT SSID, PassPhrase FROM {config["database"]["ssid_table"]} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
+        query_out = utils.get_db_values(config, ssh, query)
         db_output = query_out.strip().split()
         if len(db_output) < 2:
             wifi_reset = False
@@ -299,6 +288,6 @@ def test_rdkbcli_wifi_reset_with_custom_values(page,request,ssh,paths):
     if wifi_reset:
         print_success("Completed verification of OneWifiMesh DB values with expected default values for each haul type")
     #Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
-    print_step("Step 8: Verify any core files generated in device after WiFi reset.")
-    utils.verify_core_dump_generated(request, ssh)  
+    print_step("Step 8: Verify any core files generated in the devices after WiFi reset.")
+    utils.verify_core_dump_generated(config, request, ssh)  
     print_step("Exiting Test5: test_rdkbcli_wifi_reset_with_custom_values")

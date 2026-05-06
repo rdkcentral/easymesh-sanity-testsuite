@@ -1,0 +1,40 @@
+controller:
+  ip: ""
+  user: ""
+  pass: ""
+  key_file: null
+
+extenders:
+  ext1:
+    ip: ""
+    user: ""
+    pass: ""
+    passphrase: ""
+  ext2:
+    ip: ""
+    user: ""
+    pass: ""
+    passphrase: ""
+    
+wifi_clients:
+  client1:
+    ip: ""
+    user: ""
+    pass: ""    
+
+lan_clients:
+  lan1:
+    mac: ""
+    user: ""
+    pass: ""
+
+database:
+  name: OneWifiMesh
+  user: ""
+  pass: ""
+  ssid_table: NetworkSSIDList
+
+system:
+  bridge_intf: brlan0
+  wifi_reset_interface: eth0_virt_peer
+  reset_json_file: /usr/ccsp/EasyMesh/Reset.json
