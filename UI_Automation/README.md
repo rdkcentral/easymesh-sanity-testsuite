@@ -111,3 +111,7 @@ Each entry under `lan_clients` represents one wired LAN client.
 - `conftest.py` currently connects to the controller and extenders with password-based Paramiko SSH sessions.
 - Extender and client SSH sessions are opened through the controller using Paramiko direct TCP/IP channels.
 - If `TEST_RUN_DIR` is set by `main.py`, reports and screenshots are created there; otherwise Pytest creates a fallback `TestRun_<timestamp>` directory automatically.
+
+## Test Setup Architecture
+
+For detailed diagrams of the physical test setup and scalability approach, see [Test Setup Architecture](EM_Test_User_Manual.md#test-setup-architecture) in the **EM_Test_User_Manual.md** document.
