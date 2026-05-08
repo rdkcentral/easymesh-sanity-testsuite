@@ -136,104 +136,53 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
         print_success("Current topology matches with Star network topology")
     print_step("Exiting Test1: test_validate_ui_topology")
 
-#Need three BPI devices to validate below test case
-@pytest.mark.skip(reason="Further changes are required in this test case to support scaling")
 def test_determine_topology_type_from_brctl_command(config, request, ssh):
     print_step("Entering Test2: test_determine_topology_type_from_brctl_command")
-    # Topology validation flags
-    mesh_topology_present = True
-    mesh_topology = "Unknown"
-    # Step 1: Fetch all station interfaces from the backhaul bridge
-    print_step(f"Step 1: Fetch station interfaces from bridge '{config["system"]["bridge_intf"]}' on controller device")
-    sta_interfaces = utils.get_sta_interfaces_from_bridge(ssh, "controller", config["system"]["bridge_intf"])
-    
-    #print_step(f"Bridge '{config["system"]["bridge_intf"]}' STA interfaces: {sta_interfaces} (No of extender devices connected={len(sta_interfaces)})")
+    # Retrieve STA interfaces from controller bridge
+    bridge_intf = config["system"]["bridge_intf"]
+    print_step("Step 1: Retrieve STA interfaces from the controller bridge")
+    sta_interfaces = utils.get_sta_interfaces_from_bridge(ssh, "controller", bridge_intf)
+    # Validate STA interface availability
     if len(sta_interfaces) == 0:
-        mesh_topology_present = False
-        print_error(request, "No station interfaces detected on the backhaul bridge; cannot determine mesh topology.")
+        print_error(request, "No STA interfaces were detected on the controller bridge, so the mesh topology could not be determined.")
     else:
-        print(f"Bridge '{config["system"]["bridge_intf"]}' STA interfaces: {sta_interfaces} (No of extender devices connected={len(sta_interfaces)})")
-        print_success(f"STA interfaces fetched: {sta_interfaces}")        
-        print_step("Step 2: Dump station details for extenders directly connected to the controller.")
-        # Track valid extender station dumps
-        valid_ext_count_ctrl = 0
-        # Dump detailed info for each station interface
+        print_success(f"Controller bridge {bridge_intf} contains {len(sta_interfaces)} STA interface(s): {sta_interfaces}.")
+        # Dump station details for controller-connected extenders
+        print_step("Step 2: Retrieve station dump details for controller-connected extenders.")
         for sta_iface in sta_interfaces:
-            print(f"\nDump station info for interface: {sta_iface}")
             dump_output = ssh.run("controller", f"iw dev {sta_iface} station dump")
-            # check if the output is empty
             if not dump_output.strip():
-                print_error(request, f"No station information found for interface {sta_iface}; cannot validate mesh connection")
+                pytest.fail(f"No station dump information found for interface {sta_iface}.")
             else:
+                print_success(f"Station dump retrieved successfully for STA interface {sta_iface}.")
                 print(dump_output)
-                print_success(f"Station dump successful for interface {sta_iface}")
-                valid_ext_count_ctrl += 1
-        # If no valid station dumps in controller → topology invalid
-        if valid_ext_count_ctrl == 0:
-            mesh_topology_present = False
-            print_error(request, "No valid station dumps on controller; cannot determine topology")
-    if mesh_topology_present:
-        print_step("Step 3: Determine mesh topology based on valid station count")
-        if valid_ext_count_ctrl >= 2:
-            print_success("Multiple valid STA connections detected → Star topology")
-            mesh_topology = "Star"
-        elif valid_ext_count_ctrl == 1:
-            print_step("Step 3.1: Single valid STA on controller → checking extender-1 for child connections")
-            extender_sta_interfaces = utils.get_sta_interfaces_from_bridge(ssh, "agent", request.session.bridge_intf)
-            if not extender_sta_interfaces:
-                print_error(request, "No child extender interfaces found on Extender-1; cannot determine Daisy topology.")
+        # Determine topology type
+        print_step("Step 3: Determine mesh topology type based on STA interface count")
+        # Star topology validation
+        if len(sta_interfaces) >= 2:
+            print(f"Controller has {len(sta_interfaces)} directly connected extenders.")
+            print_success("Star mesh topology detected.")
+        # Daisy topology validation
+        elif len(sta_interfaces) == 1:
+            print("Single extender connected to controller; starting daisy-chain topology traversal.")
+            # Collect first-hop MAC from controller
+            print_step("Step 3.1: Retrieve first-hop (Direct Extender) MAC address from controller.")
+            parent_mac = utils.get_station_mac("controller", sta_interfaces[0], ssh)
+            if not parent_mac:
+                pytest.fail("Failed to retrieve first-hop MAC address from controller station dump output")
             else:
-                print(f"Extender-1 STA interfaces: {extender_sta_interfaces} (No of child extender devices connected={len(extender_sta_interfaces)})")
-                print_success(f"Extender-1 STA interfaces found: {extender_sta_interfaces}")
-                print_step("Step 3.2: Dump station details of child extenders connected to Extender-1.")
-                # Validate child extenders connected to Extender-1
-                valid_child_extender_count = 0
-                for sta_iface in extender_sta_interfaces:
-                    print(f"\nDump station info for agent interface: {sta_iface}")
-                    dump_output = ssh.run("agent", f"iw dev {sta_iface} station dump")
-                    if not dump_output.strip():
-                        print_error(request, f"No station information found on agent interface {sta_iface}; child extender not connected")
-                    else:
-                        print(dump_output)
-                        print_success(f"Station dump successful for agent interface {sta_iface}")
-                        valid_ext_count_ctrl += 1
-        # If no valid station dumps in controller → topology invalid
-        if valid_ext_count_ctrl == 0:
-            mesh_topology_present = False
-            print_error(request, "No valid station dumps on controller; cannot determine topology")
-    if mesh_topology_present:
-        print_step("Step 3: Determine mesh topology based on valid station count")
-        if valid_ext_count_ctrl >= 2:
-            print_success("Multiple valid STA connections detected → Star topology")
-            mesh_topology = "Star"
-        elif valid_ext_count_ctrl == 1:
-            print_step("Step 3.1: Single valid STA on controller → checking extender-1 for child connections")
-            extender_sta_interfaces = utils.get_sta_interfaces_from_bridge(ssh, "agent", request.session.bridge_intf)
-            if not extender_sta_interfaces:
-                print_error(request, "No child extender interfaces found on Extender-1; cannot determine Daisy topology.")
-            else:
-                print(f"Extender-1 STA interfaces: {extender_sta_interfaces} (No of child extender devices connected={len(extender_sta_interfaces)})")
-                print_success(f"Extender-1 STA interfaces found: {extender_sta_interfaces}")
-                print_step("Step 3.2: Dump station details of child extenders connected to Extender-1.")
-                # Validate child extenders connected to Extender-1
-                valid_child_extender_count = 0
-                for sta_iface in extender_sta_interfaces:
-                    print(f"\nDump station info for agent interface: {sta_iface}")
-                    dump_output = ssh.run("agent", f"iw dev {sta_iface} station dump")
-                    if not dump_output.strip():
-                        print_error(request, f"No station information found on agent interface {sta_iface}; child extender not connected")
-                    else:
-                        print(dump_output)
-                        print_success(f"Station dump successful for agent interface {sta_iface}")
-                        valid_child_extender_count += 1
-                # Require at least one VALID child extender connection
-                if valid_child_extender_count >= 1:
-                    mesh_topology = "Daisy"
-                    print_success("Valid child extender connection detected → Daisy topology")
+                print_success(f"First-hop extender MAC address: {parent_mac}")
+                # Create extender MAC mapping
+                print_step("Step 3.2: Build extender mesh backhaul MAC address mapping")
+                extender_mac_map, mac_map_ok = utils.build_extender_mac_map(request, ssh)
+                if not mac_map_ok:
+                    pytest.fail("Failed to build extender mesh backhaul MAC address mapping")
                 else:
-                    print_error(request, "No valid child extender connections → topology unknown")
+                    print_success(f"Successfully built extender MAC mapping for {len(extender_mac_map)} extender(s)")
+                    # Start daisy-chain traversal validation
+                    print_step("Step 3.3: Start hop-by-hop daisy-chain traversal validation")
+                    utils.validate_daisy_topology(parent_mac, extender_mac_map, config, request, ssh)
+        # Unexpected topology state
         else:
-            print_error(request, "Mesh topology could not be determined. Please check the backhaul interfaces.")
-
-    print(f"\nDetected Mesh Topology: {mesh_topology}")
+            print_error(request, "Unexpected STA interface state detected; unable to determine mesh topology")
     print_step("Exiting Test2: test_determine_topology_type_from_brctl_command")

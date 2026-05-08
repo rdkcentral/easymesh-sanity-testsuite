@@ -70,19 +70,16 @@ def get_client_wifi_intf(client_ip, client_user, client_pass, ssh):
        pytest.fail("WiFi interface not found on the device")
     return wifi_iface
 
-def get_interface_mac_address(config, ssh):
-    ctrl_ip = config["controller"]["ip"]
+def get_interface_mac_address(device, interface_name, ssh):
     # Run ifconfig remotely via SSH
-    interface_name = config["system"]["wifi_reset_interface"]
-    print(f"Fetch MAC address of interface '{interface_name}' on {ctrl_ip} via SSH")
-    output = ssh.run("controller", f"ifconfig {interface_name}")
+    output = ssh.run(device, f"ifconfig {interface_name}")
     # Parse MAC address
     mac_match = re.search(r"(?:HWaddr|ether)\s+([0-9a-fA-F:]{17})", output, re.IGNORECASE)
     if not mac_match:
         pytest.fail(f"MAC address not found for {interface_name}")
     mac_address = mac_match.group(1)
-    print_success(f"MAC address of {interface_name} on {ctrl_ip}: {mac_address}")
-    return mac_address
+    print(f"MAC address of {interface_name} on {device}: {mac_address}")
+    return mac_address.lower()
 
 def get_db_values(config, ssh, query):
     #Run MySQL query on device via SSH and return output
@@ -285,3 +282,99 @@ def get_wifi_scan_result(client_ip, client_user, client_pass, ssid_name, ssh, sc
     if not scan_output or not scan_output.strip():
         pytest.fail(f"No Wi-Fi networks found on client device for interface {client_wifi_intf}")
     return scan_output
+
+def extract_mac_from_dump(dump_output):
+    match = re.search(r"([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5})", dump_output)
+    return match.group(1).lower() if match else None
+
+def get_station_mac(device, sta_iface, ssh):
+    # Fetch the station MAC address from the station dump output
+    dump = ssh.run(device, f"iw dev {sta_iface} station dump")
+    if not dump.strip():
+        pytest.fail(f"No station dump output found on {device} for interface {sta_iface}")
+    mac = extract_mac_from_dump(dump)
+    if not mac:
+        pytest.fail(f"Failed to extract MAC address from station dump on {device} for interface {sta_iface}")
+    return mac.lower()
+
+def build_extender_mac_map(request, ssh):
+    # Build the extender mesh backhaul MAC address mapping
+    mesh_bh_inf = "wifi1.3"
+    extender_mac_map = {}
+    mac_map_ok = True
+    for extender in ssh.extenders:
+        mac = get_interface_mac_address(extender, mesh_bh_inf, ssh)
+        if not mac:
+            print_error(request, f"Mesh backhaul MAC address not found on {extender} interface {mesh_bh_inf}")
+            mac_map_ok = False
+        else:
+            extender_mac_map[mac] = extender
+    return extender_mac_map, mac_map_ok
+
+def get_child_mac(current_extender, config, request, ssh):
+    # Fetch the child extender MAC connected to the current extender
+    sta_list = get_sta_interfaces_from_bridge(ssh, current_extender, config["system"]["bridge_intf"])
+    print(f"{current_extender}: detected {len(sta_list)} STA interface(s) on bridge {config['system']['bridge_intf']} -> {sta_list}")
+    child_mac = None
+    child_count = 0
+    topology_valid = True
+    for sta in sta_list:
+        mac = get_station_mac(current_extender, sta, ssh)
+        # Skip invalid or missing MAC values
+        if not mac:
+            continue
+        child_count += 1
+        child_mac = mac
+    # Validation: linear topology must have a maximum of one child
+    if child_count > 1:
+        print_error(request, f"{current_extender}: detected {child_count} child extenders; expected maximum 1 for linear daisy-chain topology")
+        topology_valid = False
+    elif child_count == 1:
+        print(f"{current_extender}: child extender detected with MAC {child_mac}")
+    else:
+        print(f"{current_extender}: no child extender detected (end of chain)")
+    return child_mac, topology_valid
+
+def validate_daisy_topology(parent_mac, extender_mac_map, config, request, ssh):
+    # Validate the linear daisy-chain topology
+    visited_extenders = []
+    topology_ok = True
+    traversal_complete = False
+    expected_count = len(extender_mac_map)
+    while not traversal_complete:
+        current_extender = extender_mac_map.get(parent_mac)
+        if not current_extender:
+            print_error(request, f"Extender mapping not found for MAC address {parent_mac}")
+            topology_ok = False
+            break
+        # Prevent revisiting a node
+        if current_extender in visited_extenders:
+            print_error(request, f"Topology loop detected: extender {current_extender} - {parent_mac} was already visited")
+            topology_ok = False
+            break
+        # Mark extender as visited
+        visited_extenders.append(current_extender)
+        print(f"Topology traversal: visiting extender {current_extender}")
+        child_mac, topology_valid = get_child_mac(current_extender, config, request, ssh)
+        if not topology_valid:
+            topology_ok = False
+            break
+        # End of chain
+        if not child_mac:
+            traversal_complete = True
+        else:
+            parent_mac = child_mac
+    if len(visited_extenders) < 2:
+        topology_ok = False
+        print_error(request, f"Invalid topology. At least two extenders are required for topology validation, but only {len(visited_extenders)} extender was observed.")
+    elif len(visited_extenders) == expected_count:
+        print_success(f"Topology traversal completed successfully: visited {len(visited_extenders)} extender(s)")
+    else:
+        topology_ok = False
+        print_error(request, f"Topology traversal incomplete: visited {len(visited_extenders)} extender(s), expected {expected_count}")
+    # Final topology validation
+    print_step("Step 3.4: Validate final mesh topology result.")
+    if topology_ok:
+        print_success("Daisy-chain mesh topology detected.")
+    else:
+        print_error(request,"Invalid mesh topology detected.")
