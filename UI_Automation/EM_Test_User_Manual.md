@@ -86,6 +86,114 @@ The suite validates:
 - SSH: Port 22 (controller, agent, clients)
 - HTTP: Port 8888 (RDKB CLI Web Interface)
 
+## Test Setup Architecture
+
+### Physical Test Setup
+
+The minimum test setup consists of 1 Controller (BPI-R4), 2 Extenders (BPI-R4), 1 Wi-Fi Client (Linux PC), and 1 LAN Client (Raspberry Pi 4).
+
+```mermaid
+graph TB
+    subgraph TM["🖥️ Test Machine (Automation Host)"]
+        pytest["pytest + Playwright\n(SSH via Paramiko)"]
+    end
+
+    subgraph MESH["EasyMesh Network (BPI-R4 Devices)"]
+        CTR["📦 Controller\nBPI-R4\nOneWifiMesh DB\nSSH :22 | RDKB-CLI HTTP :8888"]
+        EXT1["📡 Extender 1\nBPI-R4\nSSH :22"]
+        EXT2["📡 Extender 2\nBPI-R4\nSSH :22"]
+    end
+
+    subgraph CLIENTS["Client Devices"]
+        WC["💻 Wi-Fi Client\nLinux PC\nSSH :22"]
+        LC["🍓 LAN Client\nRaspberry Pi 4\n(MAC-based identification)"]
+    end
+
+    pytest -- "SSH :22" --> CTR
+    pytest -- "SSH :22" --> EXT1
+    pytest -- "SSH :22" --> EXT2
+    pytest -- "SSH :22" --> WC
+    pytest -- "HTTP :8888" --> CTR
+
+    CTR <-- "EasyMesh Backhaul\n(Wireless / Wired)" --> EXT1
+    CTR <-- "EasyMesh Backhaul\n(Wireless / Wired)" --> EXT2
+
+    LC -- "Ethernet (brlan0)" --> CTR
+    WC -- "Wi-Fi (Mesh SSID\nFronthaul / Backhaul)" --> CTR
+```
+
+**Key Features:**
+- The test machine reaches all devices over SSH (:22) and the RDKB-CLI web UI over HTTP (:8888)
+- Both extenders form the EasyMesh backhaul with the controller
+- LAN Client (RPi4) connects via Ethernet into the `brlan0` bridge on the controller
+- Wi-Fi Client (Linux PC) connects over the Mesh SSID for connectivity validation
+
+### Scalability via config.yaml
+
+The test suite supports dynamic scaling. Add new extenders, Wi-Fi clients, and LAN clients by defining new entries in `config.yaml`. The test code automatically iterates over all configured devices—no code changes required.
+
+```mermaid
+graph TB
+    subgraph YAML["config.yaml — Dynamic Entries"]
+        direction TB
+        Y_CTRL["controller:\n  ip, user, pass, key_file\n  ─── 1 entry (fixed) ───"]
+        Y_EXT["extenders:\n  ext1: ip, user, pass\n  ext2: ip, user, pass\n  extN: ip, user, pass\n  ─── N entries (dynamic) ───"]
+        Y_WC["wifi_clients:\n  client1: ip, user, pass\n  clientN: ip, user, pass\n  ─── N entries (dynamic) ───"]
+        Y_LC["lan_clients:\n  lan1: mac, user, pass\n  lanN: mac, user, pass\n  ─── N entries (dynamic) ───"]
+        Y_DB["database:\n  name, user, pass, ssid_table\n  ─── 1 entry (fixed) ───"]
+    end
+
+    subgraph CODE["Test Code — Dynamic Iteration"]
+        direction TB
+        IT_EXT["config.get('extenders', {}).keys()\n→ SSH to each extender\n→ Service checks, backhaul verify"]
+        IT_WC["config.get('wifi_clients', {}).items()\n→ SSH to each Wi-Fi client\n→ SSID broadcast / connectivity"]
+        IT_LC["config.get('lan_clients', {}).items()\n→ MAC-based LAN connectivity\n→ brlan0 bridge checks"]
+        IT_DB["config['database']\n→ MySQL query on controller\n→ NetworkSSIDList / Reset.json"]
+    end
+
+    subgraph SCALE["Scaled-Up Physical Setup (Example)"]
+        direction LR
+        CTR2["Controller\nBPI-R4"]
+        EXT_A["Extender 1\nBPI-R4"]
+        EXT_B["Extender 2\nBPI-R4"]
+        EXT_N["Extender N\nBPI-R4"]
+        WC_A["Wi-Fi Client 1\nLinux PC"]
+        WC_N["Wi-Fi Client N\nLinux PC"]
+        LC_A["LAN Client 1\nRPi4"]
+        LC_N["LAN Client N\nRPi4"]
+        CTR2 <-- "Backhaul" --> EXT_A
+        CTR2 <-- "Backhaul" --> EXT_B
+        CTR2 <-- "Backhaul" --> EXT_N
+        WC_A -- "Wi-Fi" --> CTR2
+        WC_N -- "Wi-Fi" --> CTR2
+        LC_A -- "Ethernet" --> CTR2
+        LC_N -- "Ethernet" --> CTR2
+    end
+
+    Y_CTRL --> IT_DB
+    Y_EXT --> IT_EXT
+    Y_WC --> IT_WC
+    Y_LC --> IT_LC
+    IT_EXT --> EXT_A
+    IT_EXT --> EXT_B
+    IT_EXT --> EXT_N
+    IT_WC --> WC_A
+    IT_WC --> WC_N
+    IT_LC --> LC_A
+    IT_LC --> LC_N
+```
+
+**How Scalability Works:**
+
+| config.yaml Section | Code Pattern | What Scales |
+|---|---|---|
+| `extenders: extN: ...` | `config.get("extenders", {}).keys()` | Service checks, backhaul verification on all extenders |
+| `wifi_clients: clientN: ...` | `config.get("wifi_clients", {}).items()` | SSID broadcast and Wi-Fi connectivity tests per client |
+| `lan_clients: lanN: ...` | `config.get("lan_clients", {}).items()` | LAN connectivity tests per client |
+| `controller` | Single fixed entry | Always 1 controller |
+
+To scale, simply add new named entries to `config.yaml` under `extenders`, `wifi_clients`, or `lan_clients`—the test suite dynamically discovers and tests each device.
+
 ## Installation Guide
 
 ### Step 1: Install Python Dependencies
@@ -148,20 +256,20 @@ Update UI_Automation/config.yaml with your setup details:
 controller:
   ip: "<controller_ip>"
   user: "<controller_username>"
-  pass: "<controller_password>"
+  pass: None
   key_file: null
 
 extenders:
   ext1:
     ip: "<agent1_ip>"
     user: "<agent1_username>"
-    pass: "<agent1_password>"
-    passphrase: ""
+    pass: None
+    passphrase: None
   ext2:
     ip: "<agent2_ip>"
     user: "<agent2_username>"
-    pass: "<agent2_password>"
-    passphrase: ""
+    pass: None
+    passphrase: None
 
 wifi_clients:
   client1:
@@ -190,13 +298,11 @@ system:
 ### Supported Keys and Validation Notes
 
 - controller.ip and controller.user are validated as required.
-- controller.pass is required for SSH login during runtime commands.
 - extenders must be a YAML mapping. Each extender requires ip and user; pass is required for SSH login.
-- wifi_clients and lan_clients are optional mappings. Configure them when running Wi-Fi and LAN client tests.
+- Configure wifi_clients and lan_clients when running Wi-Fi and LAN client tests.
 - lan_clients.<name>.mac is required for LAN connectivity validation.
 - database.name, database.user, database.pass, and database.ssid_table are used by DB queries.
 - system.bridge_intf, system.wifi_reset_interface, and system.reset_json_file are used by topology and Wi-Fi reset flows.
-- controller.key_file and extenders.<name>.passphrase are present in the template but are not currently consumed by the active UI_Automation test flow.
 
 ### Device Scaling
 
