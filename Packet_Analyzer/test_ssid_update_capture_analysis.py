@@ -26,8 +26,8 @@ from UI_Automation.playwright_utils import *
 from UI_Automation.conftest import *
 
 def get_controller_agent_mac(request, ssh):
-    ctrl_mac = get_interface_mac_address(ssh, "eth0_virt_peer",  "controller", request.session.ctrl_ip)
-    ext_mac = get_interface_mac_address(ssh, "eth1_virt_peer",  "agent", request.session.ext1_ip)
+    ctrl_mac = get_interface_mac_address("controller", "eth0_virt_peer", ssh)
+    ext_mac = get_interface_mac_address("agent", "eth1_virt_peer", ssh)
     return ctrl_mac, ext_mac
 
 def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh):

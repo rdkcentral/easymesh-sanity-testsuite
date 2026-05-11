@@ -25,7 +25,7 @@ import pytest
 
 def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     print_step("Entering Test1: test_rdkbcli_update_verify_ssid")
-    new_ssid = "TDKB_New_SSID_01"
+    new_ssid = "TDKB_New_SSID_02"
     playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 1, paths)
     print_step("Exiting Test1: test_rdkbcli_update_verify_ssid")
 
@@ -180,9 +180,14 @@ def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
     #Navigate to WirelesS Settings page
     playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
     # Select the correct AL MAC Address
-    print_step(f"Step 3: Choose the correct AL MAC Address ({config["system"]["wifi_reset_interface"]}) for reset operation.")
+    iface_name = config["system"]["wifi_reset_interface"]
+    print_step(f"Step 3: Choose the correct AL MAC Address ({iface_name}) for reset operation.")
     page.wait_for_selector("#almac-select")
-    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address(config, ssh)} ({config["system"]["wifi_reset_interface"]})".lower()
+    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address("controller", iface_name, ssh)} ({iface_name})"
+    if al_mac_address_wifi_reset:
+        print_success("AL MAC address retrieved successfully.")
+    else:
+        pytest.fail("Failed to retrieve AL MAC address.")
     result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
     if not result:
         wifi_reset = False
@@ -233,9 +238,14 @@ def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
     #Navigate to WirelesS Settings page
     playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
     # Select the correct AL MAC Address
-    print_step(f"Step 3: Choose the correct AL MAC Address ({config["system"]["wifi_reset_interface"]}) for reset operation.")
+    iface_name = config["system"]["wifi_reset_interface"]
+    print_step(f"Step 3: Choose the correct AL MAC Address ({iface_name}) for reset operation.")
     page.wait_for_selector("#almac-select")
-    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address(config, ssh)} ({config["system"]["wifi_reset_interface"]})".lower()
+    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address("controller", iface_name, ssh)} ({iface_name})"
+    if al_mac_address_wifi_reset:
+        print_success("AL MAC address retrieved successfully.")
+    else:
+        pytest.fail("Failed to retrieve AL MAC address.")
     result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
     if not result:
         wifi_reset = False
