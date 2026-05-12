@@ -43,18 +43,9 @@ def verify_service_status(request, service_name, device, output):
         print_error(request, f"{service_name} service is NOT running on {device}:\n{output}")
     else:
         print_success(f"{service_name} service is running as expected on {device} device")
-    
-def get_client_ip_interface_status(request, ssh, commands, client_ip, client_user, client_pass):
-    outputs = []
-    for command in commands:
-        output = ssh.run_client(client_ip, client_user, client_pass, command, sudo_password = client_pass)
-        outputs.append(output.strip())
-    ip, interface, active_status = outputs[0], outputs[1], outputs[2]
-    return ip, interface, active_status
 
-def verify_core_dump_generated(config, request, ssh):
-    device_list = ["controller"] + list(config.get("extenders", {}).keys())
-    for device in device_list:
+def verify_core_dump_generated(request, ssh):
+    for device in ssh.device_list:
         out = ssh.run(device, command="ls /tmp/*dmp* 2>/dev/null")        
         print(f"Core files presence command output from {device}: {out}")
         if out.strip():
@@ -112,7 +103,7 @@ def get_reset_json_data(config, ssh):
         pytest.fail(f"Failed to parse Reset.json: {e}")
     return data.get("wfa-dataelements:Reset")
 
-def get_network_ssid_list_db(config, request, ssh):
+def get_network_ssid_list_db(config, ssh):
     #Fetch NetworkSSIDList table from DB dynamically with proper column names.
     network_ssid_list_db_table = config["database"]["ssid_table"]
     #Step 1: Get column names of NetworkSSIDList table

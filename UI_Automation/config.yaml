@@ -6,11 +6,13 @@ controller:
 
 extenders:
   ext1:
+    enabled: <True/False>
     ip: ""
     user: ""
     pass: None
     passphrase: None
   ext2:
+    enabled : <True/False>
     ip: ""
     user: ""
     pass: None

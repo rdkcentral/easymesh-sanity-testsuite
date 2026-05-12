@@ -139,6 +139,18 @@ def config():
     except Exception as e:
         pytest.fail(f"Unexpected error loading config: {e}")
 
+def get_enabled_devices(config, section):
+    data = config.get(section, {})
+    if not isinstance(data, dict):
+        return {}
+    enabled_devices = {}
+    for name, device in data.items():
+        if not isinstance(device, dict):
+            continue
+        if device.get("enabled", False):
+            enabled_devices[name] = device
+    return enabled_devices
+
 RADIO_CONFIG = [
     {"link_id": 0, "radio": "2_4ghz", "ui_tab": "2_4g", "channel": "10"},
     {"link_id": 1, "radio": "5ghz", "ui_tab": "5g", "channel": "40"},
@@ -198,8 +210,15 @@ class SSHManager:
 
     # ---------- Connect ----------
     def connect(self):
+        # Get the enabled extender device count from config.yaml and validate it.
+        self.enabled_extenders = get_enabled_devices(self.config, "extenders")
+        # ---- Extender: at least ONE ----
+        if len(self.enabled_extenders) < 1:
+            pytest.fail("At least one extender must be enabled")
         # ---- Controller ----
         ctrl = self.config["controller"]
+        # ---- Device List ---
+        self.device_list = ["controller"] + list(self.enabled_extenders.keys())
 
         self.controller = paramiko.SSHClient()
         self.controller.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -215,8 +234,7 @@ class SSHManager:
 
         # ---- Extenders (via tunnel) ----
         transport = self.controller.get_transport()
-
-        for name, ext in self.config.get("extenders", {}).items():
+        for name, ext in self.enabled_extenders.items():
             channel = transport.open_channel(
                 "direct-tcpip",
                 (ext["ip"], 22),
