@@ -20,6 +20,7 @@ import time
 from playwright.sync_api import expect, sync_playwright, TimeoutError as PlaywrightTimeoutError
 import pytest
 import json
+import conftest
 
 def print_step(message):
     print(f"\033[1m\033[97m{message}\033[0m") # Bold white text
@@ -378,3 +379,144 @@ def validate_daisy_topology(parent_mac, extender_mac_map, config, request, ssh):
         print_success("Daisy-chain mesh topology detected.")
     else:
         print_error(request,"Invalid mesh topology detected.")
+
+def validate_all_configured_vaps_are_up(config, ssh):
+    print("\n[Mesh Setup Verification 1/5] Verifying if all the configured VAPs are up...")    
+    CONFIG_MAP = {
+        item["haul_id"]: item
+        for item in conftest.DB_DEFAULT_DATA
+    }
+    expected_ssids = [
+        CONFIG_MAP["Fronthaul"]["default_ssid"],
+        CONFIG_MAP["IoT"]["default_ssid"],
+        CONFIG_MAP["Backhaul"]["default_ssid"],
+    ]
+    device_list = ["controller"] + list(
+        config.get("extenders", {}).keys()
+    )
+    for device in device_list:
+        out = ssh.run(device, "iw dev | grep ssid")        
+        missing = [
+            ssid for ssid in expected_ssids
+            if ssid not in out
+        ]
+        if missing:
+            pytest.fail(f"Missing VAPs on {device}: {missing}\n Command Output:\n{out}")
+        else:
+            print(f"All configured VAPs are up on the {device} device:\n{out}")
+
+def verify_mld0_interface_presence(config, ssh, db_default_data):
+    """
+    Verify that mld0 interface is present on all devices (controller and extenders).
+    """
+    print("\n[Mesh Setup Verification 2/5] Verifying mld0 interface presence on all devices...")
+    command = "iw dev mld0 info && (iw dev mld0 info | wc -l)"
+    device_list = ["controller"] + list(config.get("extenders", {}).keys())
+    for step, device in enumerate(device_list, start=1):
+        out = ssh.run(device, command)
+        print(f"  Step {step}: Verify mld0 interface on {device}")
+        try:
+            line_count = int(out.split()[-1])
+        except (IndexError, ValueError):
+            pytest.fail(f"Unexpected output from {device}: {out}")
+        if line_count == 0:
+            pytest.fail(f"mld0 interface is NOT present on {device}. Output: {out}")
+        print(f"mld0 interface is present on {device}")
+
+def verify_mld0_links_to_privatevaps(config, ssh, db_default_data):
+    """
+    Verify that mld0 has correct number of links and each link maps to the corresponding wifi interface.
+    """
+    print("\n[Mesh Setup Verification 3/5] Verifying mld0 links map to private VAPs...")    
+    device_list = ["controller"] + list(config.get("extenders", {}).keys())
+    expected_links = 3
+    # Verify number of mld0 links
+    command_links = "iw dev mld0 info | grep 'link ID' | wc -l"
+    for step, device in enumerate(device_list, start=1):
+        out = ssh.run(device, command_links)
+        links = out.strip()
+        print(f"  Step {step}: Checking mld0 link count on {device}: {links}")        
+        if links != str(expected_links):
+            pytest.fail(f"{device} expected {expected_links} links but found {links}")            
+        print(f"Step {step}: {device} has expected {expected_links} links")
+
+    # Verify MAC mapping for each link
+    for count, link_id in enumerate(range(expected_links), start=3):
+        print(f"  Step {count}: Verifying link ID {link_id} corresponds to wifi{link_id}")
+
+        for device in device_list:
+            # Get wifi MAC
+            wifi_cmd = f"iw dev wifi{link_id} info | awk '/addr/ {{print $2}}'"
+            wifi_mac = ssh.run(device, wifi_cmd).strip().replace("\r", "")
+            # Get mld0 MAC for this link (parse in Python)
+            mld_out = ssh.run(device, "iw dev mld0 info")
+            mld_mac = None
+            for line in mld_out.splitlines():
+                line = line.strip()
+                if line.startswith(f"- link ID  {link_id} link addr"):
+                    mld_mac = line.split()[-1].strip()
+                    break
+            if not mld_mac:
+                pytest.fail(f"{device} mld0 MAC for link {link_id} not found")                
+            print(f"  {device} wifi{link_id} MAC: {wifi_mac}")
+            print(f"  {device} mld0 link {link_id} MAC: {mld_mac}")
+            if wifi_mac != mld_mac:
+                pytest.fail(
+                    f"{device} mismatch for link {link_id}. "
+                    f"wifi{link_id}: {wifi_mac}, mld0: {mld_mac}"
+                )
+
+            print(f"Step {count}: {device} link {link_id} correctly maps to wifi{link_id}")
+
+def verify_mesh_backhaul_interfaces(config, ssh, db_default_data):
+    """
+    Verify that mesh backhaul interfaces have the correct SSID configured.
+    """
+    print("\n[Mesh Setup Verification 4/5] Verifying mesh backhaul interface SSIDs...")
+    device_list = ["controller"] + list(config.get("extenders", {}).keys())
+    
+    # Get expected backhaul SSID from DB_DEFAULT_DATA
+    config_map = {item["haul_id"]: item for item in db_default_data}
+    expected_ssid = config_map["Backhaul"]["default_ssid"]
+    
+    def get_interface(device):
+        return "wifi1.1" if device == "controller" else "wifi1.3"
+    
+    for count, device in enumerate(device_list, start=1):
+        interface = get_interface(device)
+        print(f"  Step {count}: Verifying mesh backhaul SSID on {device} interface {interface}")
+        cmd = f"iw dev {interface} info | grep ssid | awk '{{print $2}}'"
+        out = ssh.run(device, cmd).strip()
+        print(f"  {device.capitalize()} {interface} SSID: {out}")
+        if out != expected_ssid:
+            pytest.fail(
+                f"Mesh backhaul SSID mismatch on {device} interface {interface}. "
+                f"Expected: {expected_ssid}, Found: {out}"
+            )            
+        else:
+            print(f"Step {count}: {device} interface {interface} correctly has SSID '{expected_ssid}'")
+
+def verify_mesh_backhaul_extenders_connected(config, ssh, db_default_data):
+    """
+    Verify that extenders are connected via mesh backhaul STA interfaces on the controller.
+    """
+    print("\n[Mesh Setup Verification 5/5] Verifying extenders connected via mesh backhaul...")
+    # Get STA interfaces from the bridge
+    sta_interfaces = get_sta_interfaces_from_bridge(ssh, "controller", config["system"]["bridge_intf"])
+    if not sta_interfaces:
+        pytest.fail(f"No STA interfaces found on bridge {config['system']['bridge_intf']} on controller")        
+    print(f"Found STA interfaces on {config['system']['bridge_intf']}: {sta_interfaces}")
+    # Check each STA interface
+    for count, interface in enumerate(sta_interfaces, start=1):
+        print(f"  Step {count}: Verifying mesh backhaul interface {interface}")
+        # Get full interface info
+        cmd_info = f"iw dev {interface} info"
+        info_out = ssh.run("controller", cmd_info).strip()
+        print(f"  Output of 'iw dev {interface} info':\n{info_out}")
+        # Check connected extenders
+        cmd_dump = f"iw dev {interface} station dump"
+        station_out = ssh.run("controller", cmd_dump).strip()
+        print(f"  Output of 'iw dev {interface} station dump':\n{station_out}")
+        if not station_out:
+            pytest.fail(f"No extenders connected to mesh backhaul interface {interface}")
+        print(f"Step {count}: Interface {interface} has extenders connected\n")

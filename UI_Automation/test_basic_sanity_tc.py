@@ -170,6 +170,7 @@ def test_log_files_presence(config, request, ssh, pattern, ctrl_expected, agent_
         print_success(f"{count_found} log files found in /tmp on {device}.")
     print_step("Exiting Test8: test_log_files_presence")
 
+@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
 def test_all_configured_vaps_are_up(config, request, ssh):
     print_step("Entering Test9: test_all_configured_vaps_are_up")
     CONFIG_MAP = {item["haul_id"]: item for item in conftest.DB_DEFAULT_DATA}
@@ -248,6 +249,7 @@ def test_broadcast_default_SSID(config, request, ssh):
             print_success(f"Client {idx} detects {expected_backhaul_ssid}")
     print_step("Exiting Test10: test_broadcast_default_SSID")
 
+@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
 def test_mld0_interface_presence(config, request, ssh):
     print_step("Entering Test11: test_mld0_interface_presence")
     command = "iw dev mld0 info && (iw dev mld0 info | wc -l)"
@@ -264,6 +266,7 @@ def test_mld0_interface_presence(config, request, ssh):
         print_success(f"mld0 interface is present on {device}")
     print_step("Exiting Test11: test_mld0_interface_presence")
 
+@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
 def test_verify_mld0_links_to_privatevaps(config, request, ssh):
     print_step("Entering Test12: test_verify_mld0_links_to_privatevaps")
     device_list = ["controller"] + list(config.get("extenders", {}).keys())
@@ -305,6 +308,7 @@ def test_verify_mld0_links_to_privatevaps(config, request, ssh):
             print_success(f"{device} link {link_id} correctly maps to wifi{link_id}")
     print_step("Exiting Test12: test_verify_mld0_links_to_privatevaps")
 
+@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
 def test_verify_mesh_backhaul_interfaces(request, ssh, config):
     print_step("Entering Test13: test_verify_mesh_backhaul_interfaces")
     # Build device list dynamically from YAML
@@ -330,6 +334,7 @@ def test_verify_mesh_backhaul_interfaces(request, ssh, config):
             print_success(f"{device} interface {interface} correctly has SSID '{expected_ssid}'")
     print_step("Exiting Test13: test_verify_mesh_backhaul_interfaces")
 
+@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
 def test_mesh_backhaul_extenders_connected(config, request, ssh):
     print_step("Entering Test14: test_mesh_backhaul_extenders_connected")
     # Get STA interfaces from the bridge

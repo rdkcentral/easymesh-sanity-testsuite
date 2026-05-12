@@ -16,6 +16,8 @@
 # limitations under the License.
 
 from urllib import request
+from html import escape
+import re
 import pytest
 from playwright.sync_api import sync_playwright
 import paramiko
@@ -26,10 +28,20 @@ from scp import SCPClient
 import datetime
 import os
 import yaml
+import utils
+import io
+import contextlib
 
 BASE_DIR = Path(__file__).resolve().parent
 screenshots_path = None
 reports_path = None
+GLOBAL_SETUP_LOGS = []
+
+
+def record_global_setup_log(message, print_to_stdout=True):
+    if print_to_stdout:
+        print(message)
+    GLOBAL_SETUP_LOGS.append(message)
 
 global intf
 intf = "eth0_virt_peer"
@@ -123,7 +135,7 @@ def validate_config(cfg):
         clients = cfg.get(group, {})
         if clients and not isinstance(clients, dict):
             raise ValueError(f"'{group}' must be a dictionary")
-
+        
 @pytest.fixture(scope="session")
 def config():
     filename = BASE_DIR / "config.yaml"
@@ -200,10 +212,8 @@ class SSHManager:
     def connect(self):
         # ---- Controller ----
         ctrl = self.config["controller"]
-
         self.controller = paramiko.SSHClient()
         self.controller.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
         self.controller.connect(
             hostname=ctrl["ip"],
             username=ctrl["user"],
@@ -215,17 +225,14 @@ class SSHManager:
 
         # ---- Extenders (via tunnel) ----
         transport = self.controller.get_transport()
-
         for name, ext in self.config.get("extenders", {}).items():
             channel = transport.open_channel(
                 "direct-tcpip",
                 (ext["ip"], 22),
                 ("127.0.0.1", 0),
             )
-
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
             client.connect(
                 hostname=ext["ip"],
                 username=ext["user"],
@@ -234,7 +241,6 @@ class SSHManager:
                 timeout=20,
                 banner_timeout=60,
             )
-
             self.extenders[name] = client  # store by name
 
     # ---------- Execute ----------
@@ -342,11 +348,61 @@ class SSHManager:
             client.close()
 
 @pytest.fixture(scope="session")
-def ssh(config):
-    manager = SSHManager(config)
-    manager.connect()
-    yield manager
-    manager.close()
+def ssh(global_setup):
+    # Reuse the session-level SSH manager from global setup to avoid duplicate setup execution and logs.
+    yield global_setup
+
+@pytest.fixture(scope="session", autouse=True)
+def global_setup(config):
+    """
+    Runs once before the entire test suite.
+    If anything fails, entire execution stops.
+    """
+    ssh = SSHManager(config)
+    try:
+        record_global_setup_log("\n[GLOBAL SETUP] Connecting to devices...", print_to_stdout=False)
+        ssh.connect()
+        record_global_setup_log("[GLOBAL SETUP] Verifying configured VAPs and mesh formation...", print_to_stdout=False)
+        
+        # Capture output from utility functions
+        captured_output = io.StringIO()
+        with contextlib.redirect_stdout(captured_output):
+            utils.validate_all_configured_vaps_are_up(config, ssh)
+            utils.verify_mld0_interface_presence(config, ssh, DB_DEFAULT_DATA)
+            utils.verify_mld0_links_to_privatevaps(config, ssh, DB_DEFAULT_DATA)
+            utils.verify_mesh_backhaul_interfaces(config, ssh, DB_DEFAULT_DATA)
+            utils.verify_mesh_backhaul_extenders_connected(config, ssh, DB_DEFAULT_DATA)
+        
+        # Add captured output to global logs
+        output = captured_output.getvalue()
+        if output:
+            record_global_setup_log(output, print_to_stdout=False)
+        
+        record_global_setup_log("[GLOBAL SETUP] Setup successful", print_to_stdout=False)
+    except Exception as e:
+        record_global_setup_log(f"[GLOBAL SETUP FAILED] {str(e)}", print_to_stdout=False)
+        pytest.exit(
+            f"\n[GLOBAL SETUP FAILED]\n{str(e)}",
+            returncode=1
+        )
+    yield ssh
+    record_global_setup_log("\n[GLOBAL TEARDOWN] Closing SSH connections...", print_to_stdout=False)
+    ssh.close()
+
+
+def pytest_html_results_summary(prefix, summary, postfix):
+    if not GLOBAL_SETUP_LOGS:
+        return
+
+    formatted_logs = "<br>".join(escape(line) for line in GLOBAL_SETUP_LOGS)
+    summary.extend([
+        "<h2>Global Setup</h2>",
+        (
+            "<div style='white-space: pre-wrap; font-family: monospace;'>"
+            f"{formatted_logs}"
+            "</div>"
+        ),
+    ])
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
@@ -374,36 +430,42 @@ def pytest_runtest_makereport(item, call):
         extra.append(pytest_html.extras.html(message))
         report.extra = extra
 
+_ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+def _strip_ansi(text):
+    return _ANSI_ESCAPE.sub('', text)
+
 def pytest_html_results_table_html(report, data):
-    if report.when == "call":
+    if report.when not in ("call", "setup", "teardown"):
+        return
 
-        new_data = []
+    new_data = []
 
-        #Add failure traceback manually
-        if report.failed:
-            if hasattr(report, "longrepr"):
-                new_data.append(f"<div>{report.longrepr}</div>")
+    # Add failure traceback for call phase
+    if report.failed and report.when == "call":
+        if hasattr(report, "longrepr"):
+            new_data.append(f"<div>{escape(str(report.longrepr))}</div>")
 
-        #Add formatted logs
-        if hasattr(report, "capstdout"):
-            log = report.capstdout
-            lines = log.splitlines()
-            formatted_lines = []
+    # Add formatted logs from captured stdout
+    stdout = getattr(report, "capstdout", "") or ""
+    if stdout.strip():
+        lines = _strip_ansi(stdout).splitlines()
+        formatted_lines = []
+        for line in lines:
+            escaped_line = escape(line)
+            if "PASS:" in line:
+                formatted_lines.append(
+                    f'<span style="color:green; font-weight:bold;">{escaped_line}</span>'
+                )
+            elif "FAIL:" in line:
+                formatted_lines.append(
+                    f'<span style="color:red; font-weight:bold;">{escaped_line}</span>'
+                )
+            else:
+                formatted_lines.append(escaped_line)
+        html = "<br>".join(formatted_lines)
+        new_data.append(f"<div>{html}</div>")
 
-            for line in lines:
-                if "PASS:" in line:
-                    formatted_lines.append(
-                        f'<span style="color:green; font-weight:bold;">{line}</span>'
-                    )
-                elif "FAIL:" in line:
-                    formatted_lines.append(
-                        f'<span style="color:red; font-weight:bold;">{line}</span>'
-                    )
-                else:
-                    formatted_lines.append(line)
-
-            html = "<br>".join(formatted_lines)
-            new_data.append(f"<div>{html}</div>")
-        # Replace everything
+    if new_data:
         data.clear()
         data.extend(new_data)
