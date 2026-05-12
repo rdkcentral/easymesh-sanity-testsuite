@@ -19,7 +19,7 @@ import time
 from UI_Automation.utils import print_success, print_error
 
 def capture_packets(ssh, interface, filter, snap_length, capture_file_location):
-    cmd = f"nohup tcpdump -i {interface} {filter} -s {snap_length} -w {capture_file_location} > /dev/null 2>&1 & echo $!"
+    cmd = f"setsid tcpdump -i {interface} {filter} -s {snap_length} -w {capture_file_location} > /dev/null 2>&1 &  sleep 2 && pgrep -n tcpdump"
     pid = ssh.run("controller", cmd).strip()
     print_success(f"Packet capture started with PID: {pid}")
     time.sleep(5)

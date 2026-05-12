@@ -83,7 +83,7 @@ def get_interface_mac_address(device, interface_name, ssh):
 
 def get_db_values(config, ssh, query):
     #Run MySQL query on device via SSH and return output
-    cmd = f"mysql -N --batch -u {config["database"]["user"]} -p{config["database"]["pass"]} -D {config["database"]["name"]} -e \"{query}\""
+    cmd = f"mysql -N --batch -u {config['database']['user']} -p{config['database']['pass']} -D {config['database']['name']} -e \"{query}\""
     ctrl_out = ssh.run("controller", cmd)
     return ctrl_out
 
@@ -142,7 +142,7 @@ def normalize_bool(val):
 def get_fronthaul_credentials(config, ssh):
     #Fetch the current fronthaul SSID and password from OneWifiMesh DB
     try:
-        query = (f"SELECT SSID, PassPhrase FROM {config["database"]["ssid_table"]} WHERE ID LIKE '%Fronthaul%OneWifiMesh%';")
+        query = (f"SELECT SSID, PassPhrase FROM {config['database']['ssid_table']} WHERE ID LIKE '%Fronthaul%OneWifiMesh%';")
         query_out = get_db_values(config, ssh, query)
         # Check if query returned anything
         if not query_out.strip():

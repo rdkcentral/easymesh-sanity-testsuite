@@ -17,7 +17,7 @@
 
 from playwright.sync_api import expect, sync_playwright, TimeoutError as PlaywrightTimeoutError
 import pytest
-from utils import *
+from UI_Automation.utils import *
 
 def verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, step, paths):
     # Navigate to RDKB CLI page

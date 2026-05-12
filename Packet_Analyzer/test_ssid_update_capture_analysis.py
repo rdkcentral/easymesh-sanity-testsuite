@@ -30,10 +30,10 @@ def get_controller_agent_mac(request, ssh):
     ext_mac = get_interface_mac_address("agent", "eth1_virt_peer", ssh)
     return ctrl_mac, ext_mac
 
-def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh):
+def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh, config):
     print_step("Entering test_capture_and_analyze_packets_with_ssid_update test")    
     # Initialize controller and agent MAC addresses
-    ctrl_mac, agent_mac = get_controller_agent_mac(request, ssh)
+    ctrl_mac, agent_mac = get_controller_agent_mac(request, ssh, config)
     message_verify.controller_mac = ctrl_mac
     message_verify.agent_mac = agent_mac
     
@@ -47,7 +47,7 @@ def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh)
     capture_id = capture_utils.capture_packets(ssh, intf, filter, 0, remote_capture_file_path)
     time.sleep(2)
     #Update the SSID from RDKBCLI and verify update on controller and agent devices    
-    verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 2, paths)
+    verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 2, paths)
     time.sleep(40)
     #time.sleep(5)
     print_step("\nStep 10: Stop the packet capture")
