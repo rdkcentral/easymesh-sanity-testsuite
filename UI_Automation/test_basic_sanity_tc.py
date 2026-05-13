@@ -170,28 +170,8 @@ def test_log_files_presence(config, request, ssh, pattern, ctrl_expected, agent_
         print_success(f"{count_found} log files found in /tmp on {device}.")
     print_step("Exiting Test8: test_log_files_presence")
 
-@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
-def test_all_configured_vaps_are_up(config, request, ssh):
-    print_step("Entering Test9: test_all_configured_vaps_are_up")
-    CONFIG_MAP = {item["haul_id"]: item for item in conftest.DB_DEFAULT_DATA}
-    expected_ssids = [ CONFIG_MAP["Fronthaul"]["default_ssid"], CONFIG_MAP["IoT"]["default_ssid"],
-                       CONFIG_MAP["Backhaul"]["default_ssid"] ]
-    device_list = ["controller"] + list(config.get("extenders", {}).keys())
-    for count, device in enumerate(device_list, start=1):
-        print_step(f"Step {count}: Verify if all configured VAPs are up on {device} device")
-        out = ssh.run(device, "iw dev | grep ssid")
-        print(f"'iw dev | grep ssid' output from {device}:\n{out}")
-        missing = [ssid for ssid in expected_ssids if ssid not in out]
-        if missing:
-            print_error(request, 
-                f"Missing VAPs on {device}: {missing}\n"
-                f"Command Output:\n{out}"
-            )
-        print_success(f"All configured VAPs are up on {device}")
-    print_step("Exiting Test9: test_all_configured_vaps_are_up")
-
 def test_broadcast_default_SSID(config, request, ssh):
-    print_step("Entering Test10: test_broadcast_default_SSID")
+    print_step("Entering Test9: test_broadcast_default_SSID")
     # Expected default values
     CONFIG_MAP = {item["haul_id"]: item for item in conftest.DB_DEFAULT_DATA}
     expected_fronthaul_ssid = CONFIG_MAP["Fronthaul"]["default_ssid"]
@@ -247,119 +227,10 @@ def test_broadcast_default_SSID(config, request, ssh):
             print_error(request, f"Client {idx} cannot see SSID: {expected_backhaul_ssid}")
         else:
             print_success(f"Client {idx} detects {expected_backhaul_ssid}")
-    print_step("Exiting Test10: test_broadcast_default_SSID")
-
-@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
-def test_mld0_interface_presence(config, request, ssh):
-    print_step("Entering Test11: test_mld0_interface_presence")
-    command = "iw dev mld0 info && (iw dev mld0 info | wc -l)"
-    device_list = ["controller"] + list(config.get("extenders", {}).keys())
-    for step, device in enumerate(device_list, start=1):
-        out = ssh.run(device, command)
-        print_step(f"Step{step}: Verify if mld0 interface is present on {device} device")
-        try:
-            line_count = int(out.split()[-1])
-        except (IndexError, ValueError):
-            print_error(request, f"Unexpected output from {device}: {out}")
-        if line_count == 0:
-            print_error(request, f"mld0 interface is NOT present on {device}. Output: {out}")
-        print_success(f"mld0 interface is present on {device}")
-    print_step("Exiting Test11: test_mld0_interface_presence")
-
-@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
-def test_verify_mld0_links_to_privatevaps(config, request, ssh):
-    print_step("Entering Test12: test_verify_mld0_links_to_privatevaps")
-    device_list = ["controller"] + list(config.get("extenders", {}).keys())
-    expected_links = 3
-    # Verify number of mld0 links
-    command_links = "iw dev mld0 info | grep 'link ID' | wc -l"
-    for step, device in enumerate(device_list, start=1):
-        out = ssh.run(device, command_links)
-        links = out.strip()
-        print_step(f"Step{step}: {device} mld0 link count: {links}")
-        if links != str(expected_links):
-            print_error(request, f"{device} expected {expected_links} links but found {links}")
-        print_success(f"{device} has expected {expected_links} links")
-    # Verify MAC mapping
-    for count, link_id in enumerate(range(expected_links), start=3):
-        print_step(f"Step {count}: Verify link ID {link_id} corresponds to wifi{link_id}")
-        for device in device_list:
-            # Get wifi MAC
-            wifi_cmd = f"iw dev wifi{link_id} info | awk '/addr/ {{print $2}}'"
-            wifi_mac = ssh.run(device, wifi_cmd).strip().replace("\r", "")
-            # Get mld0 MAC for this link (parse in Python)
-            mld_out = ssh.run(device, "iw dev mld0 info")
-            mld_mac = None
-            for line in mld_out.splitlines():
-                line = line.strip()
-                if line.startswith(f"- link ID  {link_id} link addr"):
-                    mld_mac = line.split()[-1].strip()
-                    break
-            if not mld_mac:
-                print_error(request, f"{device} mld0 MAC for link {link_id} not found")
-            print(f"{device} wifi{link_id} MAC: {wifi_mac}")
-            print(f"{device} mld0 link {link_id} MAC: {mld_mac}")
-            if wifi_mac != mld_mac:
-                print_error(
-                    request,
-                    f"{device} mismatch for link {link_id}. "
-                    f"wifi{link_id}: {wifi_mac}, mld0: {mld_mac}"
-                )
-            print_success(f"{device} link {link_id} correctly maps to wifi{link_id}")
-    print_step("Exiting Test12: test_verify_mld0_links_to_privatevaps")
-
-@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
-def test_verify_mesh_backhaul_interfaces(request, ssh, config):
-    print_step("Entering Test13: test_verify_mesh_backhaul_interfaces")
-    # Build device list dynamically from YAML
-    device_list = ["controller"] + list(config.get("extenders", {}).keys())
-    # Interface mapping logic
-    def get_interface(device):
-        return "wifi1.1" if device == "controller" else "wifi1.3"
-    CONFIG_MAP = {item["haul_id"]: item for item in conftest.DB_DEFAULT_DATA}
-    expected_ssid = CONFIG_MAP["Backhaul"]["default_ssid"]
-    for count, device in enumerate(device_list, start=1):
-        interface = get_interface(device)
-        print_step(f"Step {count}: Verify mesh backhaul SSID on {device} interface {interface}")
-        cmd = f"iw dev {interface} info | grep ssid | awk '{{print $2}}'"
-        out = ssh.run(device, cmd).strip()
-        print(f"{device.capitalize()} {interface} SSID: {out}")
-        if out != expected_ssid:
-            print_error(
-                request,
-                f"Mesh backhaul SSID mismatch on {device} interface {interface}. "
-                f"Expected: {expected_ssid}, Found: {out}"
-            )
-        else:
-            print_success(f"{device} interface {interface} correctly has SSID '{expected_ssid}'")
-    print_step("Exiting Test13: test_verify_mesh_backhaul_interfaces")
-
-@pytest.mark.skip(reason="Skipping this test since its covered in setup stage")
-def test_mesh_backhaul_extenders_connected(config, request, ssh):
-    print_step("Entering Test14: test_mesh_backhaul_extenders_connected")
-    # Get STA interfaces from the bridge
-    sta_interfaces = utils.get_sta_interfaces_from_bridge(ssh, "controller", config["system"]["bridge_intf"])
-    if not sta_interfaces:
-        print_error(request, f"No STA interfaces found on bridge {config["system"]["bridge_intf"]} on controller")
-    print(f"Found STA interfaces on {config["system"]["bridge_intf"]}: {sta_interfaces}")
-    # Check each STA interface
-    for count, interface in enumerate(sta_interfaces, start=1):
-        print_step(f"Step {count}: Verifying mesh backhaul interface {interface}")
-        # Get full interface info
-        cmd_info = f"iw dev {interface} info"
-        info_out = ssh.run("controller", cmd_info).strip()
-        print(f"Output of 'iw dev {interface} info':\n{info_out}")
-        # Check connected extenders
-        cmd_dump = f"iw dev {interface} station dump"
-        station_out = ssh.run("controller", cmd_dump).strip()
-        print(f"Output of 'iw dev {interface} station dump':\n{station_out}")
-        if not station_out:
-            print_error(request, f"No extenders connected to mesh backhaul interface {interface}")
-        print_success(f"Interface {interface} has extenders connected")
-    print_step("Exiting Test14: test_mesh_backhaul_extenders_connected")
+    print_step("Exiting Test9: test_broadcast_default_SSID")
 
 def test_verify_agent_connectivity_to_default_gateway(config, request, ssh):
-    print_step("Entering Test15: test_verify_agent_connectivity_to_default_gateway")
+    print_step("Entering Test10: test_verify_agent_connectivity_to_default_gateway")
     ext_list = list(config.get("extenders", {}).keys())
     for extender in ext_list:
         print_step(f"Step 1: Verify agent connectivity to default gateway through extender {extender}")
@@ -370,26 +241,26 @@ def test_verify_agent_connectivity_to_default_gateway(config, request, ssh):
             print_error(request, f"Agent device {extender} does NOT have connectivity to default gateway. " f"Ping output: {agent_out}")
         else:
             print_success(f"Agent device {extender} has connectivity to default gateway")
-    print_step("Exiting Test15: test_verify_agent_connectivity_to_default_gateway")
+    print_step("Exiting Test10: test_verify_agent_connectivity_to_default_gateway")
 
 def test_ssh_controller_agent_connectivity(config, ssh):
-    print_step("Entering Test16: test_ssh_controller_agent_connectivity")
+    print_step("Entering Test11: test_ssh_controller_agent_connectivity")
     device_list = ["controller"] + list(config.get("extenders", {}).keys())
     for count, device in enumerate(device_list, start=1):
         print_step(f"Step {count}: Verify SSH connectivity to {device} device")
         out = ssh.run(device, "cat /version.txt")
         print_success(f"SSH connectivity to {device} verified successfully. Firmware version: {out.strip()}")
-    print_step("Exiting Test16: test_ssh_controller_agent_connectivity")
+    print_step("Exiting Test11: test_ssh_controller_agent_connectivity")
 
 def test_verify_rdkbcli_browser_launch(config, page):
-    print_step("Entering Test17: test_verify_rdkbcli_browser_launch")
+    print_step("Entering Test12: test_verify_rdkbcli_browser_launch")
     #Navigate to Rdkbcli page
     playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
     time.sleep(5)
-    print_step("Exiting Test17: test_verify_rdkbcli_browser_launch")
+    print_step("Exiting Test12: test_verify_rdkbcli_browser_launch")
 
 def test_verify_rdkbcli_tab_navigation(config, page, request, paths):
-    print_step("Entering Test18: test_verify_rdkbcli_tab_navigation")
+    print_step("Entering Test13: test_verify_rdkbcli_tab_navigation")
     #Navigate to Rdkbcli page
     playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
     #Navigate to Wireless Settings page
@@ -432,4 +303,4 @@ def test_verify_rdkbcli_tab_navigation(config, page, request, paths):
     # Click "Reports" from sidebar and verify correct page is loaded
     #playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'Reports', 14, paths)
     #time.sleep(5)    
-    print_step("Exiting Test18: test_verify_rdkbcli_tab_navigation")
+    print_step("Exiting Test13: test_verify_rdkbcli_tab_navigation")
