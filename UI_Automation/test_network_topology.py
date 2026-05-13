@@ -25,6 +25,10 @@ import cv2
 
 def test_validate_ui_topology(config, page, request, ssh, paths):
     print_step("Entering Test1: test_validate_ui_topology")
+    # Test prerequisite: Ensure at least two extenders are connected, before running the network topology test scenario.
+    if len(ssh.enabled_extenders) < 2:
+        print("Test prerequisite: At least two extender devices are required to validate topology test scenarios.")
+        pytest.skip("Need at least two extenders for topology validation.")
     # Navigate to Rdkbcli page
     playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
     # Navigate to Network Topology page
@@ -138,6 +142,10 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
 
 def test_determine_topology_type_from_brctl_command(config, request, ssh):
     print_step("Entering Test2: test_determine_topology_type_from_brctl_command")
+    # Test prerequisite: Ensure at least two extenders are connected, before running the network topology test scenario.
+    if len(ssh.enabled_extenders) < 2:
+        print("Test prerequisite: At least two extender devices are required to validate topology test scenarios.")
+        pytest.skip("Need at least two extenders for topology validation.")
     # Retrieve STA interfaces from controller bridge
     bridge_intf = config["system"]["bridge_intf"]
     print_step("Step 1: Retrieve STA interfaces from the controller bridge")

@@ -44,7 +44,7 @@ Before running the test suite, update `config.yaml` in the project root with you
 ### Validation Rules From `conftest.py`
 
 - The `controller` section must exist and must include non-empty `ip` and `user` values.
-- The `extenders` section must be a YAML mapping. Each extender entry must include non-empty `ip` and `user` values.
+- The `extenders` section must be a valid YAML mapping. Each extender entry must include non-empty `ip` and `user` values, and an `enabled` parameter set to either true or false. At least one extender must be enabled.
 - The `wifi_clients` and `lan_clients` sections, when present, must be YAML mappings.
 
 ### `config.yaml` Structure
@@ -64,6 +64,7 @@ Each entry under `extenders` represents one agent device, for example `ext1`, `e
 
 | Key | Description |
 | --- | --- |
+| `enabled` | Extender enabled status (True or False) |
 | `ip` | IP address of the extender or agent |
 | `user` | SSH username for the extender |
 | `pass` | SSH password for the extender |

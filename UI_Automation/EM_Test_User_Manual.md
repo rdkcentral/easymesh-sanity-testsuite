@@ -187,7 +187,7 @@ graph TB
 
 | config.yaml Section | Code Pattern | What Scales |
 |---|---|---|
-| `extenders: extN: ...` | `config.get("extenders", {}).keys()` | Service checks, backhaul verification on all extenders |
+| `extenders: extN: ...` | `ssh.enabled_extenders` | Service checks, backhaul verification on all enabled extenders |
 | `wifi_clients: clientN: ...` | `config.get("wifi_clients", {}).items()` | SSID broadcast and Wi-Fi connectivity tests per client |
 | `lan_clients: lanN: ...` | `config.get("lan_clients", {}).items()` | LAN connectivity tests per client |
 | `controller` | Single fixed entry | Always 1 controller |
@@ -261,11 +261,13 @@ controller:
 
 extenders:
   ext1:
+    enabled: <True or False>
     ip: "<agent1_ip>"
     user: "<agent1_username>"
     pass: None
     passphrase: None
   ext2:
+    enabled: <True or False>
     ip: "<agent2_ip>"
     user: "<agent2_username>"
     pass: None
@@ -298,7 +300,7 @@ system:
 ### Supported Keys and Validation Notes
 
 - controller.ip and controller.user are validated as required.
-- extenders must be a YAML mapping. Each extender requires ip and user; pass is required for SSH login.
+- extenders must be a YAML mapping. Each extender requires enabled, ip and user; pass is required for SSH login.
 - Configure wifi_clients and lan_clients when running Wi-Fi and LAN client tests.
 - lan_clients.<name>.mac is required for LAN connectivity validation.
 - database.name, database.user, database.pass, and database.ssid_table are used by DB queries.
@@ -307,6 +309,7 @@ system:
 ### Device Scaling
 
 - Add more extenders under extenders and more clients under wifi_clients/lan_clients in the YAML file as needed.
+- For each extender, the enabled parameter must be specified as either true or false. At least one extender must be enabled.
 - Tests auto-discover configured extenders in YAML file and iterate dynamically over them.
 
 ## Test Cases Documentation

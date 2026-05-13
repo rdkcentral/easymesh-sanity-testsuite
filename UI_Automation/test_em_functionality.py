@@ -152,10 +152,8 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
         print_error(request, f"Channel change validation failed on controller. Expected Channel value: {new_channel}, Actual channel value: {updated_channel_ctrl_device}")
     else:
         print_success(f"Channel Change verification passed in Controller device with updated value {new_channel}.")
-    
     print_step("Step 13: Fetch the updated channel value from Agent devices")
-    ext_list = list(config.get("extenders", {}).keys())
-    for extender in ext_list:
+    for extender in ssh.enabled_extenders:
         print_step(f"Fetching updated channel value from Agent device: {extender}")
         agent_out = ssh.run(extender, "iw dev mld0 info")
         agent_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', agent_out, re.S)
@@ -226,7 +224,7 @@ def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
         print_success("Completed verification of OneWifiMesh DB values with expected default values for each haul type")
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
     print_step("Step 6: Verify any core files generated in the devices after WiFi reset.")
-    utils.verify_core_dump_generated(config, request, ssh)
+    utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test4: test_rdkbcli_wifi_reset_with_default_values")
 
 def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
@@ -299,5 +297,5 @@ def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
         print_success("Completed verification of OneWifiMesh DB values with expected default values for each haul type")
     #Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
     print_step("Step 8: Verify any core files generated in the devices after WiFi reset.")
-    utils.verify_core_dump_generated(config, request, ssh)  
+    utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test5: test_rdkbcli_wifi_reset_with_custom_values")
