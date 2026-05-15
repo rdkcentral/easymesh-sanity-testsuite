@@ -126,10 +126,20 @@ def validate_config(cfg):
     if not isinstance(extenders, dict):
         raise ValueError("'extenders' must be a dictionary (YAML mapping)")
     for name, ext in extenders.items():
-        if not ext.get("ip"):
-            raise ValueError(f"Extender '{name}' missing IP")
-        if not ext.get("user"):
-            raise ValueError(f"Extender '{name}' missing user")
+        if not isinstance(ext, dict):
+            raise ValueError(f"Extender '{name}' must be a dictionary")
+        # enabled field must exist
+        if "enabled" not in ext:
+            raise ValueError(f"Extender '{name}' missing 'enabled' field")
+        # enabled must be boolean
+        if not isinstance(ext["enabled"], bool):
+            raise ValueError(f"Extender '{name}' enabled must be True or False")
+        # validate only enabled extenders
+        if ext["enabled"] is True:
+            if not ext.get("ip"):
+                raise ValueError(f"Extender '{name}' missing IP")
+            if not ext.get("user"):
+                raise ValueError(f"Extender '{name}' missing user")
     # ---- Clients ----
     for group in ["wifi_clients", "lan_clients"]:
         clients = cfg.get(group, {})

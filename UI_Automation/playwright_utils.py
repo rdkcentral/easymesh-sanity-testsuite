@@ -60,6 +60,7 @@ def verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_s
             page.wait_for_timeout(retry_interval)
     # SSID failure
     print_error(request, f"SSID update FAILED after retries. Expected: {new_ssid}, Results: {results}")
+    return False
 
 def verify_password_update_in_controller_and_agent(config, page, request, ssh, new_pass, step, paths):
     #Navigate to Rdkbcli page
