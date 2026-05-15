@@ -1,27 +1,21 @@
 controller:
   ip: ""
   user: ""
-  pass: None
-  key_file: null
 
 extenders:
   ext1:
     enabled: <True/False>
     ip: ""
     user: ""
-    pass: None
-    passphrase: None
   ext2:
-    enabled : <True/False>
+    enabled: <True/False>
     ip: ""
     user: ""
-    pass: None
-    passphrase: None
     
 wifi_clients:
   client1:
     ip: ""
-    user: ""
+    user:  ""
     pass: ""    
 
 lan_clients:

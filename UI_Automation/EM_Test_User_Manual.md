@@ -53,33 +53,29 @@ The suite validates:
 
 - Controller Device: 1 device accessible via network (configured in config.yaml)
 - Agent/Extender Devices: 2 devices accessible via network (configured in config.yaml)
-- WiFi Client: 1 device with WiFi capability (configured in config.yaml). This Wi-Fi client should be connected to the same LAN network as the BPI controller.
-- LAN Client: 1 device connected to controller via Ethernet (configured in config.yaml)
+- WiFi Client: 1 device with Linux OS and WiFi capability (configured in config.yaml). This Wi-Fi client should be connected to the same LAN network as the BPI controller.
+- LAN Client: 1 device with Linux OS connected to controller via Ethernet (RPI4 or Linux PC supported; configured in config.yaml)
 - Database Access: Mesh database accessible from controller (configured in config.yaml)
 
 ### Test suite Execution Pre-requisites
 
 - The sanity test suite execution requires test setup with minimum - 1 Controller, 2 Extenders, 1 LAN client and 1 Wi-Fi client. More extenders and clients can be configured in config.yaml.
-- Mesh backhaul formation must be ensured before running the test suite. If backhaul is not successfully formed, test cases are expected to fail.
+- Please ensure that the setup is in default state before triggering the full suite. Only with default state, the setup stage will pass.
+- Mesh backhaul formation must be ensured before running the test suite. If backhaul is not successfully formed, setup stage is expected to fail and no tests will be executed.
 - Please configure the test setup details as directed in the Configuration section of this document. Minimum 1 extender must be configured in config.yaml under extenders.
 - Minimum of 2 extenders need to be onboarded successfully for running the topology related test test_network_topology.py::test_validate_ui_topology.
-- Please ensure that the setup is in default state before triggering the full suite. Only with default state, the test cases test_basic_sanity_tc::test_db_values_match_default_json and test_basic_sanity_tc::test_broadcast_default_SSID will pass.
 
 ### Known failures encountered with the test suite execution
 
 | Sl.No | Failed test case name | Description | Bug ID |
 | --- | --- | --- | --- |
-| 1 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_default_values | onewifi_em_ctrl process crash on WiFi Reset from RDKB-CLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-373 |
+| 1 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_default_values | onewifi_em_ctrl process crash on WiFi Reset from RDKB-CLI, Default SSID not restored after Wi-Fi reset and manual service restart | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-373 , https://jira.rdkcentral.com/jira/browse/RDKBWIFI-431 |
 | 2 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_custom_values | WiFi Reset with Custom Values Not Working via rdkbcli | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-418 |
 | 3 | test_em_functionality.py::test_rdkbcli_channel_change_preference | Intermittent Operating Class changes during Channel Switching via RDKBCLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-424 |
 
-### Test suite Execution Pre-requisites 
+### Test suite Limitations
 
-- The sanity test suite execution requires test setup with 1 Controller, 2 Extenders, 1 LAN client and 1 Wi-Fi client.
-- Mesh backhaul formation must be ensured before running the test suite. If backhaul is not successfully formed, test cases are expected to fail.
-- Please configure the test setup details as directed in 'Configuration' section of this document. Only 1 Extender details need to be configured as part of 'Agent details' in conftest.py.
-- 2 extenders need to be onboarded successfully for running the topology related test 'test_network_topology.py::test_validate_ui_topology'.
-- Please ensure that the setup is in default state or should be set to a default state before triggering the full suite. Only with default state, the 2 test cases 'test_basic_sanity_tc::test_db_values_match_default_json' and 'test_basic_sanity_tc::test_broadcast_default_SSID' will pass.
+- Currently only Linux OS based Stations are supported. Framework lacks support for Windows and Android Stations.
 
 ### Port Requirements
 
@@ -90,7 +86,7 @@ The suite validates:
 
 ### Physical Test Setup
 
-The minimum test setup consists of 1 Controller (BPI-R4), 2 Extenders (BPI-R4), 1 Wi-Fi Client (Linux PC), and 1 LAN Client (Raspberry Pi 4).
+The minimum test setup consists of 1 Controller (BPI-R4), 2 Extenders (BPI-R4), 1 Wi-Fi Client (Linux PC), and 1 LAN Client (RPI4 or Linux PC).
 
 ```mermaid
 graph TB
@@ -106,7 +102,7 @@ graph TB
 
     subgraph CLIENTS["Client Devices"]
         WC["💻 Wi-Fi Client\nLinux PC\nSSH :22"]
-        LC["🍓 LAN Client\nRaspberry Pi 4\n(MAC-based identification)"]
+        LC["🖥️ LAN Client\nRPI4 or Linux PC\n(MAC-based identification)"]
     end
 
     pytest -- "SSH :22" --> CTR
@@ -125,7 +121,7 @@ graph TB
 **Key Features:**
 - The test machine reaches all devices over SSH (:22) and the RDKB-CLI web UI over HTTP (:8888)
 - Both extenders form the EasyMesh backhaul with the controller
-- LAN Client (RPi4) connects via Ethernet into the `brlan0` bridge on the controller
+- LAN Client (RPI4 or Linux PC) connects via Ethernet into the `brlan0` bridge on the controller
 - Wi-Fi Client (Linux PC) connects over the Mesh SSID for connectivity validation
 
 ### Scalability via config.yaml
@@ -159,8 +155,8 @@ graph TB
         EXT_N["Extender N\nBPI-R4"]
         WC_A["Wi-Fi Client 1\nLinux PC"]
         WC_N["Wi-Fi Client N\nLinux PC"]
-        LC_A["LAN Client 1\nRPi4"]
-        LC_N["LAN Client N\nRPi4"]
+        LC_A["LAN Client 1\nRPI4 or Linux PC"]
+        LC_N["LAN Client N\nRPI4 or Linux PC"]
         CTR2 <-- "Backhaul" --> EXT_A
         CTR2 <-- "Backhaul" --> EXT_B
         CTR2 <-- "Backhaul" --> EXT_N
@@ -209,6 +205,8 @@ pip install pyyaml==6.0.1
 pip install scp==0.15.0
 pip install scikit-image==0.21.0
 pip install opencv-python==4.8.1.78
+pip install scapy==2.5.0
+pip install pytest-check==1.1.2
 ```
 
 ### Step 2: Install Playwright Browsers
@@ -231,18 +229,35 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
+Alternatively, here is a sample requirements.txt content:
+
+```
+pytest==7.4.0
+pytest-html==3.2.0
+pytest-check==1.1.2
+playwright==1.40.0
+paramiko==3.3.1
+pyyaml==6.0.1
+scp==0.15.0
+scikit-image==0.21.0
+opencv-python==4.8.1.78
+scapy==2.5.0
+```
+
 ### Package Details
 
 | Package | Version | Purpose |
 | --- | --- | --- |
 | pytest | 7.4.0 | Test framework and execution engine |
 | pytest-html | 3.2.0 | HTML report generation |
+| pytest-check | 1.1.2 | Assertion checking for packet analysis tests |
 | playwright | 1.40.0 | Browser automation for UI testing |
 | paramiko | 3.3.1 | SSH client for device communication |
 | pyyaml | 6.0.1 | YAML config loading/parsing |
 | scp | 0.15.0 | SSH file transfer for log collection |
 | scikit-image | 0.21.0 | Image similarity comparison for topology |
 | opencv-python | 4.8.1.78 | Image processing for topology validation |
+| scapy | 2.5.0 | Packet analysis and IEEE 1905.1 frame parsing |
 
 ## Configuration
 
@@ -256,22 +271,16 @@ Update UI_Automation/config.yaml with your setup details:
 controller:
   ip: "<controller_ip>"
   user: "<controller_username>"
-  pass: None
-  key_file: null
 
 extenders:
   ext1:
     enabled: <True or False>
     ip: "<agent1_ip>"
     user: "<agent1_username>"
-    pass: None
-    passphrase: None
   ext2:
     enabled: <True or False>
     ip: "<agent2_ip>"
     user: "<agent2_username>"
-    pass: None
-    passphrase: None
 
 wifi_clients:
   client1:
@@ -466,18 +475,34 @@ A comprehensive HTML report is generated at the path passed to --html.
 
 #### Report Contents
 
-- Test Summary: Pass/Fail/Skip statistics
-- Execution Timeline: Duration for each test
-- Detailed Logs: Console output for each test
-- Screenshots: UI screenshots for failed tests
-- Error Messages: Full error traceback
+- **Test Summary:** Pass/Fail/Skip statistics with execution timing
+- **Execution Timeline:** Duration for each test with start/end times
+- **Detailed Logs:** Console output for each test including verification steps
+- **Global Setup Section:** Device connection, VAP verification, and mesh formation checks
+- **Screenshots:** UI screenshots for failed tests (stored in TestRun_YYYYMMDD_HHMMSS/Screenshots/)
+- **Error Messages:** Full error tracebacks with context information
+
+#### Global Setup Fixture Output
+
+The global_setup fixture runs once before the entire test suite and performs critical verification. Its output appears at the top of the HTML report and includes:
+
+- **Device Connection:** Connection status to controller, extenders, and clients
+- **VAP Verification:** All configured Virtual Access Points status check
+- **Interface Validation:** MLD0 interface presence and links to private VAPs
+- **Mesh Backhaul Verification:** Backhaul interface configuration on controller and extenders
+- **Extender Connectivity:** Validation that all configured extenders are connected to controller mesh
+- **Setup Status:** Overall setup success or failure with detailed error messages
+
+If any verification step fails during global setup, the entire test suite execution is stopped with detailed error information, ensuring setup integrity.
 
 #### Report Features
 
 - Color-coded test results (Green=Pass, Red=Fail, Orange=Skip)
-- Sortable test results table
-- Expandable log details
-- Embedded screenshots for debugging
+- Sortable test results table with test names and execution times
+- Expandable log details for each test section
+- Global setup section at the beginning with all pre-execution verification logs
+- Embedded screenshots for debugging UI-related failures
+- Device connectivity and network topology verification logs
 
 ### Generated Files
 

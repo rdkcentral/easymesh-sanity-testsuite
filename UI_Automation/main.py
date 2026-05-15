@@ -33,9 +33,9 @@ if __name__ == "__main__":
     pytest.main([
         "-v",
         f"{BASE_DIR}/test_basic_sanity_tc.py",
+        f"{BASE_DIR}/test_network_topology.py",
         f"{BASE_DIR}/test_wifi_client_connectivity.py",
         f"{BASE_DIR}/test_lan_client_connectivity.py",
-        f"{BASE_DIR}/test_network_topology.py",
         f"{BASE_DIR}/test_em_functionality.py",
         f"--html={reports_path}/sanity_report.html",
         "--self-contained-html"

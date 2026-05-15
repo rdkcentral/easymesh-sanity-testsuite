@@ -23,17 +23,38 @@ import pytest_check as check
 import ieee1905_utils
 from UI_Automation.utils import *
 from UI_Automation.playwright_utils import *
-from UI_Automation.conftest import *
+from UI_Automation.conftest import (
+    config,
+    test_run_dirs,
+    paths,
+    playwright_instance,
+    browser,
+    context,
+    page,
+    ssh_manager,
+    intf,
+    filter,
+    expected_renew_count,
+    expected_count_wsc,
+    expected_count_topology_query,
+    expected_count_topology_response,
+    M2_TYPE,
+    MSG_TYPE_AP_AUTOCONFIGURATION_RENEW,
+    MSG_TYPE_AP_AUTOCONFIG_RENEW,
+    MSG_TYPE_AP_AUTOCONFIG_WSC,
+    MSG_TYPE_AP_TOPOLOGY_QUERY,
+    MSG_TYPE_AP_TOPOLOGY_RESPONSE,
+)
 
-def get_controller_agent_mac(request, ssh):
-    ctrl_mac = get_interface_mac_address("controller", "eth0_virt_peer", ssh)
-    ext_mac = get_interface_mac_address("agent", "eth1_virt_peer", ssh)
+def get_controller_agent_mac(ssh_manager):
+    ctrl_mac = get_interface_mac_address("controller", "eth0_virt_peer", ssh_manager)
+    ext_mac = get_interface_mac_address("ext1", "eth1_virt_peer", ssh_manager)
     return ctrl_mac, ext_mac
 
-def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh, config):
+def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh_manager, config):
     print_step("Entering test_capture_and_analyze_packets_with_ssid_update test")    
     # Initialize controller and agent MAC addresses
-    ctrl_mac, agent_mac = get_controller_agent_mac(request, ssh, config)
+    ctrl_mac, agent_mac = get_controller_agent_mac(ssh_manager)
     message_verify.controller_mac = ctrl_mac
     message_verify.agent_mac = agent_mac
     
@@ -42,22 +63,22 @@ def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh,
     local_capture_file_path = paths["run_dir"] / "Captured_Packets"
     local_capture_file_path.mkdir(parents=True, exist_ok=True)
     local_capture_file_name = local_capture_file_path / "ssid_update.pcap"
-    new_ssid = "TDKB_Test12345"
+    new_ssid = "TDKBTest_123"
     print_step("\nStep 1: Start packet capture on Wi-Fi interface")  
-    capture_id = capture_utils.capture_packets(ssh, intf, filter, 0, remote_capture_file_path)
+    capture_id = capture_utils.capture_packets(ssh_manager, intf, filter, 0, remote_capture_file_path)
     time.sleep(2)
     #Update the SSID from RDKBCLI and verify update on controller and agent devices    
-    verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 2, paths)
+    verify_ssid_update_in_controller_and_agent(config, page, request, ssh_manager, new_ssid, 2, paths)
     time.sleep(40)
     #time.sleep(5)
     print_step("\nStep 10: Stop the packet capture")
     #Stop packet capture
-    capture_utils.stop_packet_capture(ssh, capture_id)
+    capture_utils.stop_packet_capture(ssh_manager, capture_id)
     #time.sleep(5)
 
     print_step("\nStep 11: Verify if captured file exists on device after stopping capture")
     #Verify if the captured packet file exists on the device after stopping capture. If not, print appropriate error message and fail the test.
-    out = ssh.run("controller", f"ls -l {remote_capture_file_path}")
+    out = ssh_manager.run("controller", f"ls -l {remote_capture_file_path}")
     file_exists = "No such file" not in out
     check.is_true(file_exists, f"\nFail: Failed to find captured file at {remote_capture_file_path} on device after stopping capture.")
     if file_exists:
@@ -68,11 +89,11 @@ def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh,
 
     print_step("\nStep 12: Transfer the captured packet file to local machine for analysis")
     #Transfer the captured packet file to local machine for analysis
-    check.equal(capture_utils.transfer_capfile_from_device(ssh, remote_capture_file_path, f"{local_capture_file_name}"), True, "\nFail: Failed to transfer captured file from device.")
+    check.equal(capture_utils.transfer_capfile_from_device(ssh_manager, remote_capture_file_path, f"{local_capture_file_name}"), True, "\nFail: Failed to transfer captured file from device.")
 
     print_step("\nStep 13: Delete the captured packet file from device to free up space")
     #Delete the captured file from device after transfer to free up space
-    out = ssh.run("controller", f"rm -f {remote_capture_file_path}")
+    out = ssh_manager.run("controller", f"rm -f {remote_capture_file_path}")
     print_success(f"Deleted captured file from device to free up space.")
 
     print_step("\n\nStep 14: Start analyzing captured packets to verify the presence of expected messages")
