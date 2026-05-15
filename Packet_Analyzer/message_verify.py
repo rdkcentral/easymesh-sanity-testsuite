@@ -16,7 +16,6 @@
 # limitations under the License.
 
 from scapy.all import rdpcap, Ether
-from UI_Automation.conftest import *
 from UI_Automation.utils import *
 from ieee1905_utils import *
 import re
@@ -26,13 +25,13 @@ ETHERTYPE_1905 = 0x893A
 #number_of_agents = 1
 #supported_bands_of_controller = 3
 
-#MSG_TYPE_AP_AUTOCONFIGURATION_RENEW = 0x000A
-#MSG_TYPE_AP_TOPOLOGY_QUERY = 0x0002
-#MSG_TYPE_AP_TOPOLOGY_RESPONSE = 0x0003
-#MSG_TYPE_AP_AUTOCONFIG_WSC = 0x0009
-#MSG_TYPE_AP_AUTOCONFIG_RENEW = 0x000A
-#MSG_TYPE_TOPOLOGY_DISCOVERY = 0x0000
-#CMDU_AP_ERROR = 0x0055
+MSG_TYPE_AP_AUTOCONFIGURATION_RENEW = 0x000A
+MSG_TYPE_AP_TOPOLOGY_QUERY = 0x0002
+MSG_TYPE_AP_TOPOLOGY_RESPONSE = 0x0003
+MSG_TYPE_AP_AUTOCONFIG_WSC = 0x0009
+MSG_TYPE_AP_AUTOCONFIG_RENEW = 0x000A
+MSG_TYPE_TOPOLOGY_DISCOVERY = 0x0000
+CMDU_AP_ERROR = 0x0055
 
 fragment_store = {}
 m1_message_store = {}
@@ -144,8 +143,8 @@ def get_tlv_type_name(tlv_type):
     return tlv_names.get(tlv_type, f"Unknown TLV type: 0x{tlv_type:02X}")
 
 def verify_ssidname_in_topology_response(filename, ssid_name):
-    found_tlvs = ""
-    tlv_values = ""
+    found_tlvs = []
+    tlv_values = []
     packets = rdpcap(filename)
    
     flow_packets = [
@@ -171,6 +170,10 @@ def verify_ssidname_in_topology_response(filename, ssid_name):
         if MSG_TYPE_AP_TOPOLOGY_RESPONSE == message_type:
             # print(payload.hex())
             found_tlvs, _, tlv_values, _, _ = parse_tlvs(payload)
+
+    if not found_tlvs:
+        print_error("No TLVs parsed from Topology Response")
+        return False
    
     if TLV_TYPE_AP_OPERATIONAL_BSS not in found_tlvs:
         print_error(f"AP Operational BSS TLV not present")
