@@ -107,7 +107,7 @@ def test_fronthaul_wifi_client_connectivity(config, request, ssh):
 def test_fronthaul_wifi_client_connectivity_with_updated_ssid(config, page, request, ssh, paths):
     print_step("Entering Test2: test_fronthaul_wifi_client_connectivity_with_updated_ssid")
     print_step("Step 1: Update the fronthaul SSID from RDKB-CLI and verify the update on controller and agent devices")
-    new_ssid = "TDKB_New_SSID_03"
+    new_ssid = "TDKB_New_SSID_01"
     ssid_update_status = playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 2, paths)
     if ssid_update_status:
         # Wait 60 sec for the updated ssid to broadcast
