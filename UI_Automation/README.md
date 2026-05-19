@@ -46,8 +46,8 @@ Before running the test suite, update `config.yaml` in the project root with you
 ### Validation Rules From `conftest.py`
 
 - The `controller` section must exist and must include non-empty `ip` and `user` values.
-- The `extenders` section must be a valid YAML mapping. Each extender entry must include non-empty `ip` and `user` values, and an `enabled` parameter set to either true or false. At least one extender must be enabled.
-- The `wifi_clients` and `lan_clients` sections, when present, must be YAML mappings.
+- The `extenders` section must be a valid YAML mapping. Each extender entry must include non-empty `ip` and `user` values, and an `enabled` parameter set to either `True` or `False`. At least one extender must be enabled.
+- The `wifi_clients` and `lan_clients` sections, when present, must be valid YAML mappings. Each WiFi client entry must include non-empty `ip`, `user`, and `pass` values, and each LAN client entry must include non-empty `mac`, `user`, and `pass` values. All client entries must also include an `enabled` parameter set to either `True` or `False`.
 
 ### `config.yaml` Structure
 
@@ -74,6 +74,7 @@ Each entry under `wifi_clients` represents one Wi-Fi client.
 
 | Key | Description |
 | --- | --- |
+| `enabled` | Wireless client enabled status (True or False) |
 | `ip` | IP address of the Wi-Fi client device |
 | `user` | SSH username for the Wi-Fi client |
 | `pass` | SSH password for the Wi-Fi client |
@@ -84,6 +85,7 @@ Each entry under `lan_clients` represents one wired LAN client.
 
 | Key | Description |
 | --- | --- |
+| `enabled` | LAN client enabled status (True or False) |
 | `mac` | MAC address of the LAN client device |
 | `user` | SSH username for the LAN client |
 | `pass` | SSH password for the LAN client |

@@ -40,7 +40,7 @@ def verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_s
     print_step(f"Step {step+5}: Initial wait before device ssid verification")
     page.wait_for_timeout(20000)
     print_step(f"Step {step+6}: Verify SSID update on both controller and agent.")
-    for attempt in range(max_retries + 1):
+    for attempt in range(max_retries):
         print(f"SSID verification attempt : {attempt + 1}")
         results = {}
         for device in ssh.device_list:

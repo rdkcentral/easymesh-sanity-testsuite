@@ -63,7 +63,7 @@ The suite validates:
 - Please ensure that the setup is in default state before triggering the full suite. Only with default state, the setup stage will pass.
 - Mesh backhaul formation must be ensured before running the test suite. If backhaul is not successfully formed, setup stage is expected to fail and no tests will be executed.
 - Please configure the test setup details as directed in the Configuration section of this document. Minimum 1 extender must be configured in config.yaml under extenders.
-- Minimum of 2 extenders need to be onboarded successfully for running the topology related test test_network_topology.py::test_validate_ui_topology.
+- Minimum of 2 extenders need to be onboarded successfully for running the topology related test test_network_topology.py.
 
 ### Known failures encountered with the test suite execution
 
@@ -184,11 +184,11 @@ graph TB
 | config.yaml Section | Code Pattern | What Scales |
 |---|---|---|
 | `extenders: extN: ...` | `ssh.enabled_extenders` | Service checks, backhaul verification on all enabled extenders |
-| `wifi_clients: clientN: ...` | `config.get("wifi_clients", {}).items()` | SSID broadcast and Wi-Fi connectivity tests per client |
-| `lan_clients: lanN: ...` | `config.get("lan_clients", {}).items()` | LAN connectivity tests per client |
+| `wifi_clients: clientN: ...` | `ssh.enabled_wifi_clients` | SSID broadcast and Wi-Fi connectivity tests per client |
+| `lan_clients: lanN: ...` | `self.enabled_lan_clients` | LAN connectivity tests per client |
 | `controller` | Single fixed entry | Always 1 controller |
 
-To scale, simply add new named entries to `config.yaml` under `extenders`, `wifi_clients`, or `lan_clients`—the test suite dynamically discovers and tests each device.
+To scale, simply add new named entries to `config.yaml` under `extenders`, `wifi_clients`, or `lan_clients`—the test suite dynamically discovers and tests each enabled device.
 
 ## Installation Guide
 
@@ -284,12 +284,14 @@ extenders:
 
 wifi_clients:
   client1:
+    enabled: <True or False>
     ip: "<wifi_client_ip>"
     user: "<wifi_client_username>"
     pass: "<wifi_client_password>"
 
 lan_clients:
   lan1:
+    enabled: <True or False>
     mac: "<lan_client_mac>"
     user: "<lan_client_username>"
     pass: "<lan_client_password>"
@@ -309,17 +311,16 @@ system:
 ### Supported Keys and Validation Notes
 
 - controller.ip and controller.user are validated as required.
-- extenders must be a YAML mapping. Each extender requires enabled, ip and user; pass is required for SSH login.
-- Configure wifi_clients and lan_clients when running Wi-Fi and LAN client tests.
-- lan_clients.<name>.mac is required for LAN connectivity validation.
+- extenders must be a YAML mapping. Each extender requires enabled, ip and user.
+- Configure wifi_clients and lan_clients when running Wi-Fi and LAN client tests. Wi-Fi client entries must include enabled, ip, user, and pass fields, while LAN client entries must include enabled, mac, user, and pass fields.
 - database.name, database.user, database.pass, and database.ssid_table are used by DB queries.
 - system.bridge_intf, system.wifi_reset_interface, and system.reset_json_file are used by topology and Wi-Fi reset flows.
 
 ### Device Scaling
 
 - Add more extenders under extenders and more clients under wifi_clients/lan_clients in the YAML file as needed.
-- For each extender, the enabled parameter must be specified as either true or false. At least one extender must be enabled.
-- Tests auto-discover configured extenders in YAML file and iterate dynamically over them.
+- For each LAN client, WiFi client, and extender, the `enabled` parameter must be specified as either `True` or `False`. At least one device must be enabled.
+- Tests automatically discover configured LAN clients, WiFi clients, and extenders from the YAML file and iterate dynamically over them.
 
 ## Test Cases Documentation
 

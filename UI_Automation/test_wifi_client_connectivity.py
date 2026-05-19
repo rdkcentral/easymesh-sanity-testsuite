@@ -16,11 +16,17 @@
 # limitations under the License.
 
 import re
-import conftest
+import pytest
 import utils
 import playwright_utils
 import time
 from utils import print_step, print_error, print_success
+
+@pytest.fixture(scope="module", autouse=True)
+def check_lan_clients(ssh):
+    if len(ssh.enabled_wifi_clients) == 0:
+        print("No enabled Wi-Fi client detected. Please ensure at least one Wi-Fi client is available. Skipping wireless client connectivity test cases.")
+        pytest.skip("Test setup pre-requisite not met: at least one enabled Wi-Fi client is required.")
 
 def test_fronthaul_wifi_client_connectivity(config, request, ssh):
     print_step("Entering Test1: test_fronthaul_wifi_client_connectivity")
@@ -33,7 +39,6 @@ def test_fronthaul_wifi_client_connectivity(config, request, ssh):
             print_success("Fronthaul SSID and password fetched successfully.")
         else:
             print_error(request, "Fronthaul SSID and/or password not found in database.")
-
         # Get all AP BSSID values (2.4GHz, 5GHz, 6GHz) for fronthaul network verification
         print_step(f"Step 2: Fetch BSSID values for fronthaul from {device}")
         bssids = utils.get_fronthaul_bssids(device, ssh)
@@ -41,13 +46,11 @@ def test_fronthaul_wifi_client_connectivity(config, request, ssh):
             print_success(f"BSSIDs fetched successfully: {bssids}")
         else:
             print_error(request, f"No BSSIDs retrieved from {device}")
-
         # Execute WiFi scan on the client and filter results for the target SSID
         print_step(f"Step 3: Perform WiFi Scan from client(s) to discover available BSSIDs for SSID : {fronthaul_ssid}")
         # Before performing a Wi-Fi scan, it's best to disconnect the Wi-Fi interface if it is currently connected to any network to avoid scan issues.
         scan_cmd = f"nmcli -t -f BSSID,SSID device wifi list | grep {fronthaul_ssid}"
-
-        for client_name, wifi_client in config.get("wifi_clients", {}).items():
+        for client_name, wifi_client in ssh.enabled_wifi_clients.items():
             print_step(f"\nPerforming Wi-Fi scan from {client_name}")
             client_ip = wifi_client["ip"]
             client_user = wifi_client["user"]

@@ -14,12 +14,14 @@ extenders:
     
 wifi_clients:
   client1:
+    enabled: <True/False>
     ip: ""
     user:  ""
-    pass: ""    
+    pass: ""
 
 lan_clients:
   lan1:
+    enabled: <True/False>
     mac: ""
     user: ""
     pass: ""
