@@ -27,12 +27,20 @@ def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     print_step("Entering Test1: test_rdkbcli_update_verify_ssid")
     new_ssid = "TDKB_New_SSID_02"
     playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 1, paths)
+    #revert the SSID back to default value
+    print_step("Step 8: Revert the SSID value back to default in RDKB CLI and verify the update on device")
+    default_ssid = conftest.DB_DEFAULT_MAP_DICT["Fronthaul"]["default_ssid"]
+    playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, default_ssid, 9, paths)
     print_step("Exiting Test1: test_rdkbcli_update_verify_ssid")
 
 def test_rdkbcli_update_verify_password(config, page, request, ssh, paths):
     print_step("Entering Test2: test_rdkbcli_update_verify_password")
     new_pass = "TestTDKB@12345"
     playwright_utils.verify_password_update_in_controller_and_agent(config, page, request, ssh, new_pass, 1, paths)
+    #revert the Passphrase back to default value
+    print_step("Step 8: Revert the Passphrase value back to default in RDKB CLI and verify the update on device")
+    default_pass = conftest.DB_DEFAULT_MAP_DICT["Fronthaul"]["default_pass"]
+    playwright_utils.verify_password_update_in_controller_and_agent(config, page, request, ssh, default_pass, 9, paths)
     print_step("Exiting Test2: test_rdkbcli_update_verify_password")
 
 @pytest.mark.skip(reason="Need clarification from dev on operating class changing intermittently. Issue is tracked as part of ticket RDKBWIFI-424")

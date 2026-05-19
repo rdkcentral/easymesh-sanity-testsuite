@@ -212,6 +212,9 @@ DB_DEFAULT_DATA = [
     {"haul_id": "Hotspot", "default_ssid": "hotspot", "default_pass": "test-hotspot"}
 ]
 
+#convert the DB_DEFAULT_DATA list to dictionary
+DB_DEFAULT_MAP_DICT = {e["haul_id"]: e for e in DB_DEFAULT_DATA}
+
 WIFI_RESET_CONFIG = [
     {"haul_id": "Fronthaul", "custom_ssid": "new-fronthaul-ssid", "custom_pass": "new-fronthaul-pass"},
     {"haul_id": "IoT", "custom_ssid": "new-iot-ssid", "custom_pass": "new-iot-pass"},
