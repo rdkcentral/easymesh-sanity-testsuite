@@ -25,7 +25,7 @@ import pytest
 
 def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     print_step("Entering Test1: test_rdkbcli_update_verify_ssid")
-    new_ssid = "TDKB_New_SSID_01"
+    new_ssid = "TDKB_New_SSID_02"
     playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 1, paths)
     #revert the SSID back to default value
     print_step("Step 8: Revert the SSID value back to default in RDKB CLI and verify the update on device")
@@ -160,10 +160,8 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
         print_error(request, f"Channel change validation failed on controller. Expected Channel value: {new_channel}, Actual channel value: {updated_channel_ctrl_device}")
     else:
         print_success(f"Channel Change verification passed in Controller device with updated value {new_channel}.")
-    
     print_step("Step 13: Fetch the updated channel value from Agent devices")
-    ext_list = list(config.get("extenders", {}).keys())
-    for extender in ext_list:
+    for extender in ssh.enabled_extenders:
         print_step(f"Fetching updated channel value from Agent device: {extender}")
         agent_out = ssh.run(extender, "iw dev mld0 info")
         agent_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', agent_out, re.S)
@@ -188,9 +186,14 @@ def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
     #Navigate to WirelesS Settings page
     playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
     # Select the correct AL MAC Address
-    print_step(f"Step 3: Choose the correct AL MAC Address ({config["system"]["wifi_reset_interface"]}) for reset operation.")
+    iface_name = config["system"]["wifi_reset_interface"]
+    print_step(f"Step 3: Choose the correct AL MAC Address ({iface_name}) for reset operation.")
     page.wait_for_selector("#almac-select")
-    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address(config, ssh)} ({config["system"]["wifi_reset_interface"]})".lower()
+    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address("controller", iface_name, ssh)} ({iface_name})"
+    if al_mac_address_wifi_reset:
+        print_success("AL MAC address retrieved successfully.")
+    else:
+        pytest.fail("Failed to retrieve AL MAC address.")
     result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
     if not result:
         wifi_reset = False
@@ -229,7 +232,7 @@ def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
         print_success("Completed verification of OneWifiMesh DB values with expected default values for each haul type")
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
     print_step("Step 6: Verify any core files generated in the devices after WiFi reset.")
-    utils.verify_core_dump_generated(config, request, ssh)
+    utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test4: test_rdkbcli_wifi_reset_with_default_values")
 
 def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
@@ -241,9 +244,14 @@ def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
     #Navigate to WirelesS Settings page
     playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
     # Select the correct AL MAC Address
-    print_step(f"Step 3: Choose the correct AL MAC Address ({config["system"]["wifi_reset_interface"]}) for reset operation.")
+    iface_name = config["system"]["wifi_reset_interface"]
+    print_step(f"Step 3: Choose the correct AL MAC Address ({iface_name}) for reset operation.")
     page.wait_for_selector("#almac-select")
-    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address(config, ssh)} ({config["system"]["wifi_reset_interface"]})".lower()
+    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address("controller", iface_name, ssh)} ({iface_name})"
+    if al_mac_address_wifi_reset:
+        print_success("AL MAC address retrieved successfully.")
+    else:
+        pytest.fail("Failed to retrieve AL MAC address.")
     result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
     if not result:
         wifi_reset = False
@@ -297,5 +305,5 @@ def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
         print_success("Completed verification of OneWifiMesh DB values with expected default values for each haul type")
     #Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
     print_step("Step 8: Verify any core files generated in the devices after WiFi reset.")
-    utils.verify_core_dump_generated(config, request, ssh)  
+    utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test5: test_rdkbcli_wifi_reset_with_custom_values")

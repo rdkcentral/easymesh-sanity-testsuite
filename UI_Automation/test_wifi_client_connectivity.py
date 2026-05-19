@@ -24,8 +24,7 @@ from utils import print_step, print_error, print_success
 
 def test_fronthaul_wifi_client_connectivity(config, request, ssh):
     print_step("Entering Test1: test_fronthaul_wifi_client_connectivity")
-    device_list = ["controller"] + list(config.get("extenders", {}).keys())
-    for device in device_list:
+    for device in ssh.device_list:
         print_step(f"\n\nWireless client connectivity verification on {device}")
         # Fetch the current SSID and password from the device database
         print_step(f"\nStep 1: Fetch SSID and password for fronthaul network from Database")
@@ -95,28 +94,33 @@ def test_fronthaul_wifi_client_connectivity(config, request, ssh):
             # Fail the test if the connection was not successful
             if "successfully activated" in client_connect_out.lower():
                 print_success(f"Client connected to fronthaul network successfully via the {target_bssid}")
+                print_step(f"Step 6: Validate {client_name}'s IP address assignment and internet connectivity on the wireless interface")
+                # Verify Client IP assignment and internet connectivity
+                try:
+                    utils.verify_client_ip_and_internet(client_ip, client_user, client_pass, ssh, 7)
+                except Exception as e:
+                    print_error(request, f"Client IP/internet verification failed: {str(e)}")
             else:
                 print_error(request, f"Client failed to connect to fronthaul network via BSSID {target_bssid}")
-            print_step(f"Step 6: Validate {client_name}'s IP address assignment and internet connectivity on the wireless interface")
-            # Verify Client IP assignment and internet connectivity
-            try:
-                 utils.verify_client_ip_and_internet(client_ip, client_user, client_pass, ssh, 7)
-            except Exception as e:
-                print_error(request, f"Client IP/internet verification failed: {str(e)}")
     print_step("Exiting Test11: test_fronthaul_wifi_client_connectivity")
 
 def test_fronthaul_wifi_client_connectivity_with_updated_ssid(config, page, request, ssh, paths):
     print_step("Entering Test2: test_fronthaul_wifi_client_connectivity_with_updated_ssid")
     print_step("Step 1: Update the fronthaul SSID from RDKB-CLI and verify the update on controller and agent devices")
     new_ssid = "TDKB_New_SSID_03"
-    playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 2, paths)
-    # Wait 60 sec for the updated ssid to broadcast
-    time.sleep(60)
-    # Verify client connectivity after successful SSID update on controller and agent
-    print_step("Step 9: Trigger test_fronthaul_wifi_client_connectivity to verify client connectivity after SSID update")
-    test_fronthaul_wifi_client_connectivity(config, request, ssh)
-    # Revert the SSID back to default value
-    print_step("Step 10: Revert the SSID value back to default in RDKB CLI and verify the update on device")
-    default_ssid = conftest.DB_DEFAULT_MAP_DICT["Fronthaul"]["default_ssid"]
-    playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, default_ssid, 11, paths)
+    ssid_update_status = playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 2, paths)
+    if ssid_update_status:
+        # Wait 60 sec for the updated ssid to broadcast
+        time.sleep(60)
+        # Verify client connectivity after successful SSID update on controller and agent
+        print_step("Step 9: Trigger test_fronthaul_wifi_client_connectivity to verify client connectivity after SSID update")
+        test_fronthaul_wifi_client_connectivity(config, request, ssh)
+        # Revert the SSID back to default value
+        print_step("Step 10: Revert the SSID value back to default in RDKB CLI and verify the update on device")
+        default_ssid = conftest.DB_DEFAULT_MAP_DICT["Fronthaul"]["default_ssid"]
+        ssid_revert_status = playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, default_ssid, 11, paths)
+        if ssid_revert_status:
+            print_success("Successfully reverted back the SSID to default value")
+        else:
+            print_error(request, "Failed to revert back the SSID to default value")         
     print_step("Exiting Test2: test_fronthaul_wifi_client_connectivity_with_updated_ssid")

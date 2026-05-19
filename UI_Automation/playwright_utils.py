@@ -17,7 +17,7 @@
 
 from playwright.sync_api import expect, sync_playwright, TimeoutError as PlaywrightTimeoutError
 import pytest
-from utils import *
+from UI_Automation.utils import *
 
 def verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, step, paths):
     # Navigate to RDKB CLI page
@@ -35,7 +35,6 @@ def verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_s
     # Verify updated SSID in UI
     fetch_and_verify_home_network_input(page, request, "SSID", "#profile-ssid", new_ssid, step+4, paths)
     # Retry ssid update check logic after wait time
-    device_list = ["controller"] + list(config.get("extenders", {}).keys())
     max_retries = 6
     retry_interval = 10000  # 10 sec
     print_step(f"Step {step+5}: Initial wait before device ssid verification")
@@ -44,7 +43,7 @@ def verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_s
     for attempt in range(max_retries + 1):
         print(f"SSID verification attempt : {attempt + 1}")
         results = {}
-        for device in device_list:
+        for device in ssh.device_list:
             out = ssh.run(device, "iw dev mld0 info | awk '/ssid/ {print $2}'")
             value = out.strip() if out else ""
             if value != "":
@@ -61,6 +60,7 @@ def verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_s
             page.wait_for_timeout(retry_interval)
     # SSID failure
     print_error(request, f"SSID update FAILED after retries. Expected: {new_ssid}, Results: {results}")
+    return False
 
 def verify_password_update_in_controller_and_agent(config, page, request, ssh, new_pass, step, paths):
     #Navigate to Rdkbcli page
