@@ -163,6 +163,9 @@ def test_log_files_presence(request, ssh, pattern, ctrl_expected, agent_expected
 
 def test_broadcast_default_SSID(config, request, ssh):
     print_step("Entering Test9: test_broadcast_default_SSID")
+    if not ssh.enabled_wifi_clients:
+        print("No enabled Wi-Fi client detected. SSID broadcast verification requires at least one Wi-Fi client")
+        pytest.skip("Test setup pre-requisite not met: at least one enabled Wi-Fi client is required.")
     # Expected default values
     CONFIG_MAP = {item["haul_id"]: item for item in conftest.DB_DEFAULT_DATA}
     expected_fronthaul_ssid = CONFIG_MAP["Fronthaul"]["default_ssid"]
@@ -189,13 +192,12 @@ def test_broadcast_default_SSID(config, request, ssh):
     if backhaul_ssid != expected_backhaul_ssid:
         print_error(request, f"Default backhaul SSID mismatch in OneWifiMesh DB. Expected: {expected_backhaul_ssid}, Found: {backhaul_ssid}")
     print_success(f"Backhaul SSID from OneWifiMesh DB matched the default value")
-    wifi_clients = config.get("wifi_clients", {})
-    for idx, (name, wifi_client) in enumerate(wifi_clients.items(), start=1):
+    for client_name, wifi_client in ssh.enabled_wifi_clients.items():
         client_ip = wifi_client["ip"]
         client_user = wifi_client["user"]
         client_pass = wifi_client["pass"]
         # Perform a WiFi scan to verify that the default SSID is being broadcast.
-        print_step(f"Step 3: Verify if SSIDs are visible from client device {idx}")
+        print_step(f"Step 3: Verify if SSIDs are visible from client device : {client_name}")
         # Fronthaul scan
         print(f"Scanning for SSID: {expected_fronthaul_ssid}")
         scan_cmd = f"nmcli -t -f BSSID,SSID device wifi list | grep {expected_fronthaul_ssid}"
@@ -203,9 +205,9 @@ def test_broadcast_default_SSID(config, request, ssh):
         client_scan = client_scan.replace("\\:", ":")
         print(f"Client scan result:\n{client_scan}")
         if expected_fronthaul_ssid not in client_scan:
-            print_error(request, f"Client {idx} cannot see SSID: {expected_fronthaul_ssid}")
+            print_error(request, f"{client_name} cannot see SSID: {expected_fronthaul_ssid}")
         else:
-            print_success(f"Client {idx} detects {expected_fronthaul_ssid}")
+            print_success(f"{client_name} detects {expected_fronthaul_ssid}")
         # Backhaul scan
         print(f"Scanning for SSID: {expected_backhaul_ssid}")
         scan_cmd = f"nmcli -t -f BSSID,SSID device wifi list | grep {expected_backhaul_ssid}"
@@ -213,9 +215,9 @@ def test_broadcast_default_SSID(config, request, ssh):
         client_scan = client_scan.replace("\\:", ":")
         print(f"Client scan result:\n{client_scan}")
         if expected_backhaul_ssid not in client_scan:
-            print_error(request, f"Client {idx} cannot see SSID: {expected_backhaul_ssid}")
+            print_error(request, f"{client_name} cannot see SSID: {expected_backhaul_ssid}")
         else:
-            print_success(f"Client {idx} detects {expected_backhaul_ssid}")
+            print_success(f"{client_name} detects {expected_backhaul_ssid}")
     print_step("Exiting Test9: test_broadcast_default_SSID")
 
 def test_verify_agent_connectivity_to_default_gateway(request, ssh):

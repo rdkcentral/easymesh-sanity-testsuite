@@ -140,11 +140,36 @@ def validate_config(cfg):
                 raise ValueError(f"Extender '{name}' missing IP")
             if not ext.get("user"):
                 raise ValueError(f"Extender '{name}' missing user")
-    # ---- Clients ----
-    for group in ["wifi_clients", "lan_clients"]:
-        clients = cfg.get(group, {})
-        if clients and not isinstance(clients, dict):
-            raise ValueError(f"'{group}' must be a dictionary")
+    # ---- WiFi Clients ----
+    wifi_clients = cfg.get("wifi_clients", {})
+    if not isinstance(wifi_clients, dict):
+        raise ValueError("'wifi_clients' must be a dictionary")
+    for name, client in wifi_clients.items():
+        if not isinstance(client, dict):
+            raise ValueError(f"WiFi client '{name}' must be a dictionary")
+        if "enabled" not in client:
+            raise ValueError(f"WiFi client '{name}' missing 'enabled' field")
+        if not isinstance(client["enabled"], bool):
+            raise ValueError(f"WiFi client '{name}' enabled must be True or False")
+        if client["enabled"]:
+            for field in ["ip", "user", "pass"]:
+                if not client.get(field):
+                    raise ValueError(f"WiFi client '{name}' missing required field: {field}")
+    # ---- LAN Clients ----
+    lan_clients = cfg.get("lan_clients", {})
+    if not isinstance(lan_clients, dict):
+        raise ValueError("'lan_clients' must be a dictionary")
+    for name, client in lan_clients.items():
+        if not isinstance(client, dict):
+            raise ValueError(f"LAN client '{name}' must be a dictionary")
+        if "enabled" not in client:
+            raise ValueError(f"LAN client '{name}' missing 'enabled' field")
+        if not isinstance(client["enabled"], bool):
+            raise ValueError(f"LAN client '{name}' enabled must be True or False")
+        if client["enabled"]:
+            for field in ["mac", "user", "pass"]:
+                if not client.get(field):
+                    raise ValueError(f"LAN client '{name}' missing required field: {field}")
 
 @pytest.fixture(scope="session")
 def config():
@@ -244,6 +269,10 @@ class SSHManager:
         ctrl = self.config["controller"]
         # ---- Device List ---
         self.device_list = ["controller"] + list(self.enabled_extenders.keys())
+        # ---- Wi-Fi Clients ----
+        self.enabled_wifi_clients = get_enabled_devices(self.config, "wifi_clients")
+        # ---- LAN Clients ----
+        self.enabled_lan_clients = get_enabled_devices(self.config, "lan_clients")
 
         self.controller = paramiko.SSHClient()
         self.controller.set_missing_host_key_policy(paramiko.AutoAddPolicy())
