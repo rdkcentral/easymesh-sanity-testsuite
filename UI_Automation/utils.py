@@ -192,34 +192,68 @@ def fetch_tr181_topology_verification_params(ssh):
     # Get number of devices (Agent and extender)
     cmd_device_count = "dmcli eRT getv Device.WiFi.DataElements.Network.DeviceNumberOfEntries | grep 'value:'"
     output = ssh.run("controller", cmd_device_count)
+    print(f"Output for device count command: {output}")
     if not output:
         pytest.fail(f"SSH command returned empty output: {cmd_device_count}")
-    device_count = int(re.search(r"value:\s*(\d+)", output).group(1))
+    match = re.search(r"value:\s*(\d+)", output)
+    if not match:
+        pytest.fail(f"Failed to parse device count from output: {output}")
+    device_count = int(match.group(1))
     device_ssid_map = {}
     for i in range(1, device_count + 1):
         # Get unique ID (Mac address) for each device
         cmd_device_id = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.ID | grep 'value:'"
         output = ssh.run("controller", cmd_device_id)
-        device_id = re.search(r"value:\s*(.+)", output).group(1).strip()
+        print(f"Output for device {i} ID command: {output}")
+        if not output:
+            pytest.fail(f"Error fetching device ID for device index {i}: got empty output")
+        match = re.search(r"value:\s*(.+)", output)
+        if not match:
+            pytest.fail(f"Failed to parse device ID for device index {i}: output={output}")
+        device_id = match.group(1).strip()
         device_ssid_map[device_id] = {}
         # Get number of Radios for each device
         cmd_radio_count = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.RadioNumberOfEntries | grep 'value:'"
         output = ssh.run("controller", cmd_radio_count)
-        radio_count = int(re.search(r"value:\s*(\d+)", output).group(1))
+        print(f"Output for device {i} radio count command: {output}")
+        if not output:
+            pytest.fail(f"Error fetching radio number of entries for device index {i}: got empty output")
+        match = re.search(r"value:\s*(\d+)", output)
+        if not match:
+            pytest.fail(f"Failed to parse radio count for device index {i}: output={output}")
+        radio_count = int(match.group(1))
         for r in range(1, radio_count + 1):
             # Get number of BSS entries for each Radio
             cmd_bss_count = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.Radio.{r}.BSSNumberOfEntries | grep 'value:'"
             output = ssh.run("controller", cmd_bss_count)
-            bss_count = int(re.search(r"value:\s*(\d+)", output).group(1))
+            print(f"Output for device {i} radio {r} BSS count command: {output}")
+            if not output:
+                pytest.fail(f"Error fetching BSS number of entries for device index {i}, radio index {r}: got empty output")
+            match = re.search(r"value:\s*(\d+)", output)
+            if not match:
+                pytest.fail(f"Failed to parse BSS count for device index {i}, radio index {r}: output={output}")
+            bss_count = int(match.group(1))
             for b in range(1, bss_count + 1):
                 # Get SSID value for each BSS
                 cmd_ssid = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.Radio.{r}.BSS.{b}.SSID | grep 'value:'"
                 ssid_output = ssh.run("controller", cmd_ssid)
-                ssid = re.search(r"value:\s*(.+)", ssid_output).group(1).strip()
+                print(f"Output for device {i} radio {r} BSS {b} SSID command: {ssid_output}")
+                if not ssid_output:
+                    pytest.fail(f"Error fetching SSID for device index {i}, radio index {r}, BSS index {b}: got empty output")
+                match = re.search(r"value:\s*(.+)", ssid_output)
+                if not match:
+                    pytest.fail(f"Failed to parse SSID for device index {i}, radio index {r}, BSS index {b}: output={ssid_output}")
+                ssid = match.group(1).strip()
                 # Get BSSID value for each BSS
                 cmd_bssid = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.Radio.{r}.BSS.{b}.BSSID | grep 'value:'"
                 bssid_output = ssh.run("controller", cmd_bssid)
-                bssid = re.search(r"value:\s*([0-9a-f:]{17})", bssid_output).group(1).lower()
+                print(f"Output for device {i} radio {r} BSS {b} BSSID command: {bssid_output}")
+                if not bssid_output:
+                    pytest.fail(f"Error fetching BSSID for device index {i}, radio index {r}, BSS index {b}: got empty output")
+                match = re.search(r"value:\s*([0-9a-f:]{17})", bssid_output, re.I)
+                if not match:
+                    pytest.fail(f"Failed to parse BSSID for device index {i}, radio index {r}, BSS index {b}: output={bssid_output}")
+                bssid = match.group(1).lower()
                 if ssid not in device_ssid_map[device_id]:
                     device_ssid_map[device_id][ssid] = {'bssids': [], 'mld_mac': None}
                 device_ssid_map[device_id][ssid]['bssids'].append(bssid)
@@ -228,10 +262,13 @@ def fetch_tr181_topology_verification_params(ssh):
             if ssid_name.lower().startswith("private"):
                 cmd_mld_mac = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.APMLD.1.MLDMACAddress | grep 'value:'"
                 output = ssh.run("controller", cmd_mld_mac)
+                print(f"Output for device {i} MLD MAC command: {output}")
                 if output:
-                    mld_mac_match = re.search(r"value:\s*([0-9a-f:]{17})", output)
+                    mld_mac_match = re.search(r"value:\s*([0-9a-f:]{17})", output, re.I)
                     if mld_mac_match:
                         device_ssid_map[device_id][ssid_name]['mld_mac'] = mld_mac_match.group(1).lower()
+                    else:
+                        pytest.fail(f"Failed to parse MLD MAC for device index {i}: output={output}")
                 break
     return device_ssid_map, device_count
 
