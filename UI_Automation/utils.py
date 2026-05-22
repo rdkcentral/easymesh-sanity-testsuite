@@ -408,18 +408,11 @@ def validate_daisy_topology(parent_mac, extender_mac_map, config, request, ssh):
     else:
         print_error(request,"Invalid mesh topology detected.")
 
-def validate_all_configured_vaps_are_up(ssh):
+def validate_all_configured_vaps_are_up(config, ssh):
     print("\n[Mesh Setup Verification 1/5] Verifying if all the configured VAPs are up...")    
     errors = []
-    CONFIG_MAP = {
-        item["haul_id"]: item
-        for item in conftest.DB_DEFAULT_DATA
-    }
-    expected_ssids = [
-        CONFIG_MAP["Fronthaul"]["default_ssid"],
-        CONFIG_MAP["IoT"]["default_ssid"],
-        CONFIG_MAP["Backhaul"]["default_ssid"],
-    ]
+    ssid_map = config["database"]["network_ssid_map"]
+    expected_ssids = [ssid_map[name]["default_ssid"] for name in ["Fronthaul", "IoT", "Backhaul"]]
     for device in ssh.device_list:
         try:
             out = ssh.run(device, "iw dev | grep ssid")
@@ -527,16 +520,16 @@ def verify_mld0_links_to_privatevaps(ssh):
             print(f"Pass: {device} link {link_id} correctly maps to wifi{link_id}")
     return errors
 
-def verify_mesh_backhaul_interfaces(ssh, db_default_data):
+def verify_mesh_backhaul_interfaces(config, ssh):
     """
     Verify that mesh backhaul interfaces have the correct SSID configured.
     """
     print("\n[Mesh Setup Verification 4/5] Verifying mesh backhaul interface SSIDs...")
     errors = []
     
-    # Get expected backhaul SSID from DB_DEFAULT_DATA
-    config_map = {item["haul_id"]: item for item in db_default_data}
-    expected_ssid = config_map["Backhaul"]["default_ssid"]
+    # Get expected backhaul SSID from config.yaml
+    ssid_map = config["database"]["network_ssid_map"]
+    expected_ssid = ssid_map["Backhaul"]["default_ssid"]
     
     def get_interface(device):
         return "wifi1.1" if device == "controller" else "wifi1.3"

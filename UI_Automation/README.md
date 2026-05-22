@@ -98,6 +98,7 @@ Each entry under `lan_clients` represents one wired LAN client.
 | `user` | Database username |
 | `pass` | Database password |
 | `ssid_table` | Database table containing SSID data |
+| `network_ssid_map` | Default Database values |
 
 #### `system`
 

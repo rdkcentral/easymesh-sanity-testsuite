@@ -301,6 +301,7 @@ database:
   user: "<database_username>"
   pass: "<database_password>"
   ssid_table: NetworkSSIDList
+  network_ssid_map: (Default database values included in the code)
 
 system:
   bridge_intf: brlan0
@@ -313,7 +314,7 @@ system:
 - controller.ip and controller.user are validated as required.
 - extenders must be a YAML mapping. Each extender requires enabled, ip and user.
 - Configure wifi_clients and lan_clients when running Wi-Fi and LAN client tests. Wi-Fi client entries must include enabled, ip, user, and pass fields, while LAN client entries must include enabled, mac, user, and pass fields.
-- database.name, database.user, database.pass, and database.ssid_table are used by DB queries.
+- database.name, database.user, database.pass, database.ssid_table and database.network_ssid_map are used by DB queries.
 - system.bridge_intf, system.wifi_reset_interface, and system.reset_json_file are used by topology and Wi-Fi reset flows.
 
 ### Device Scaling
