@@ -29,7 +29,7 @@ def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 1, paths)
     #revert the SSID back to default value
     print_step("Step 8: Revert the SSID value back to default in RDKB CLI and verify the update on device")
-    default_ssid = conftest.DB_DEFAULT_MAP_DICT["Fronthaul"]["default_ssid"]
+    default_ssid = config["database"]["network_ssid_map"]["Fronthaul"]["default_ssid"]
     playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, default_ssid, 9, paths)
     print_step("Exiting Test1: test_rdkbcli_update_verify_ssid")
 
@@ -39,7 +39,7 @@ def test_rdkbcli_update_verify_password(config, page, request, ssh, paths):
     playwright_utils.verify_password_update_in_controller_and_agent(config, page, request, ssh, new_pass, 1, paths)
     #revert the Passphrase back to default value
     print_step("Step 8: Revert the Passphrase value back to default in RDKB CLI and verify the update on device")
-    default_pass = conftest.DB_DEFAULT_MAP_DICT["Fronthaul"]["default_pass"]
+    default_pass = config["database"]["network_ssid_map"]["Fronthaul"]["default_pass"]
     playwright_utils.verify_password_update_in_controller_and_agent(config, page, request, ssh, default_pass, 9, paths)
     print_step("Exiting Test2: test_rdkbcli_update_verify_password")
 
@@ -189,6 +189,7 @@ def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
     iface_name = config["system"]["wifi_reset_interface"]
     print_step(f"Step 3: Choose the correct AL MAC Address ({iface_name}) for reset operation.")
     page.wait_for_selector("#almac-select")
+
     al_mac_address_wifi_reset = f"{utils.get_interface_mac_address("controller", iface_name, ssh)} ({iface_name})"
     if al_mac_address_wifi_reset:
         print_success("AL MAC address retrieved successfully.")
@@ -204,10 +205,10 @@ def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
     #Add 10s delay to allow changes to apply on device
     page.wait_for_timeout(10000)
     print_step("Step 5: Verify the OneWifiMesh DB values correspond to the expected default values for each haul type.")
-    for wifi_reset_config in conftest.DB_DEFAULT_DATA:
-        haul_id = wifi_reset_config["haul_id"]
-        default_ssid = wifi_reset_config["default_ssid"]
-        default_pass = wifi_reset_config["default_pass"]
+    ssid_map = config["database"]["network_ssid_map"]
+    for haul_id, cfg in ssid_map.items():
+        default_ssid = cfg["default_ssid"]
+        default_pass = cfg["default_pass"]
         print(f"Haul Type: {haul_id} \n Default SSID: {default_ssid} Default Password: {default_pass}")
         # SQL query to retrieve SSID and PassPhrase for each haul type from OneWifiMesh DB.
         query = f"SELECT SSID, PassPhrase FROM {config["database"]["ssid_table"]} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
@@ -258,10 +259,10 @@ def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
         print_error(request, f"Failed to select the {config["system"]["wifi_reset_interface"]}!")
     #Fill the custom SSID and password values to be configured after WiFi reset.
     print_step("Step 4: Set the custom SSID and Password to be applied after the Wi-Fi reset for each haul type.")
-    for wifi_reset_config in conftest.WIFI_RESET_CONFIG:
-        haul_id = wifi_reset_config["haul_id"]
-        custom_ssid = wifi_reset_config["custom_ssid"]
-        custom_pass = wifi_reset_config["custom_pass"]
+    ssid_map = config["database"]["network_ssid_map"]
+    for haul_id, cfg in ssid_map.items():
+        custom_ssid = cfg["custom_ssid"]
+        custom_pass = cfg["custom_pass"]
         print(f"Haul Type: {haul_id} \n Custom SSID: {custom_ssid} Custom Password: {custom_pass}")
         checkbox = page.locator(f'#haul-{haul_id}')
         checkbox.check()
@@ -278,10 +279,10 @@ def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
     #Add 10s delay to allow changes to apply on device
     page.wait_for_timeout(10000)
     print_step("Step 7: Verify the OneWifiMesh DB values correspond to the expected default values for each haul type.")
-    for wifi_reset_config in conftest.WIFI_RESET_CONFIG:
-        haul_id = wifi_reset_config["haul_id"]
-        custom_ssid = wifi_reset_config["custom_ssid"]
-        custom_pass = wifi_reset_config["custom_pass"]
+    ssid_map = config["database"]["network_ssid_map"]
+    for haul_id, ssid_cfg in ssid_map.items():
+        custom_ssid = ssid_cfg["custom_ssid"]
+        custom_pass = ssid_cfg["custom_pass"]
         # SQL query to retrieve SSID and PassPhrase for each haul type from OneWifiMesh DB.
         query = f"SELECT SSID, PassPhrase FROM {config["database"]["ssid_table"]} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
         query_out = utils.get_db_values(config, ssh, query)

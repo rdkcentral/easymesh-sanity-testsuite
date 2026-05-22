@@ -31,6 +31,32 @@ database:
   user: ""
   pass: ""
   ssid_table: NetworkSSIDList
+  network_ssid_map:
+    Fronthaul:
+      default_ssid: private_ssid
+      default_pass: test-fronthaul
+      custom_ssid: new-fronthaul-ssid
+      custom_pass: new-fronthaul-pass
+    IoT:
+      default_ssid: iot_ssid
+      default_pass: test-backhaul
+      custom_ssid: new-iot-ssid
+      custom_pass: new-iot-pass
+    Configurator:
+      default_ssid: lnf_radius
+      default_pass: test-backhaul
+      custom_ssid: new-configurator-ssid
+      custom_pass: new-configurator-pass
+    Backhaul:
+      default_ssid: mesh_backhaul
+      default_pass: test-backhaul
+      custom_ssid: new-backhaul-ssid
+      custom_pass: new-backhaul-pass
+    Hotspot:
+      default_ssid: hotspot
+      default_pass: test-hotspot
+      custom_ssid: new-hotspot-ssid
+      custom_pass: new-hotspot-pass
 
 system:
   bridge_intf: brlan0

@@ -204,25 +204,6 @@ RADIO_CONFIG = [
     {"link_id": 2, "radio": "6ghz", "ui_tab": "6g", "channel": "33"}
 ]
 
-DB_DEFAULT_DATA = [
-    {"haul_id": "Fronthaul", "default_ssid": "private_ssid", "default_pass": "test-fronthaul"},
-    {"haul_id": "IoT","default_ssid": "iot_ssid", "default_pass": "test-backhaul"},
-    {"haul_id": "Configurator", "default_ssid": "lnf_radius", "default_pass": "test-backhaul"},
-    {"haul_id": "Backhaul", "default_ssid": "mesh_backhaul", "default_pass": "test-backhaul"},
-    {"haul_id": "Hotspot", "default_ssid": "hotspot", "default_pass": "test-hotspot"}
-]
-
-#convert the DB_DEFAULT_DATA list to dictionary
-DB_DEFAULT_MAP_DICT = {e["haul_id"]: e for e in DB_DEFAULT_DATA}
-
-WIFI_RESET_CONFIG = [
-    {"haul_id": "Fronthaul", "custom_ssid": "new-fronthaul-ssid", "custom_pass": "new-fronthaul-pass"},
-    {"haul_id": "IoT", "custom_ssid": "new-iot-ssid", "custom_pass": "new-iot-pass"},
-    {"haul_id": "Configurator", "custom_ssid": "new-configurator-ssid", "custom_pass": "new-configurator-pass"},
-    {"haul_id": "Backhaul", "custom_ssid": "new-backhaul-ssid", "custom_pass": "new-backhaul-pass"},
-    {"haul_id": "Hotspot", "custom_ssid": "new-hotspot-ssid", "custom_pass": "new-hotspot-pass"}
-]
-
 @pytest.fixture(scope="session")
 def playwright_instance():
     playwright = sync_playwright().start()
@@ -438,10 +419,10 @@ def global_setup(config, test_run_dirs):
         verification_errors = []
         with contextlib.redirect_stdout(captured_output):
             verification_steps = [
-                ("validate_all_configured_vaps_are_up", lambda: utils.validate_all_configured_vaps_are_up(ssh)),
+                ("validate_all_configured_vaps_are_up", lambda: utils.validate_all_configured_vaps_are_up(config, ssh)),
                 ("verify_mld0_interface_presence", lambda: utils.verify_mld0_interface_presence(ssh)),
                 ("verify_mld0_links_to_privatevaps", lambda: utils.verify_mld0_links_to_privatevaps(ssh)),
-                ("verify_mesh_backhaul_interfaces", lambda: utils.verify_mesh_backhaul_interfaces(ssh, DB_DEFAULT_DATA)),
+                ("verify_mesh_backhaul_interfaces", lambda: utils.verify_mesh_backhaul_interfaces(config, ssh)),
                 ("verify_mesh_backhaul_extenders_connected", lambda: utils.verify_mesh_backhaul_extenders_connected(config, ssh)),
             ]
             for step_name, step_func in verification_steps:

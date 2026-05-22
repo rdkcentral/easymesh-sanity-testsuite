@@ -167,7 +167,7 @@ def test_broadcast_default_SSID(config, request, ssh):
         print("No enabled Wi-Fi client detected. SSID broadcast verification requires at least one Wi-Fi client")
         pytest.skip("Test setup pre-requisite not met: at least one enabled Wi-Fi client is required.")
     # Expected default values
-    CONFIG_MAP = {item["haul_id"]: item for item in conftest.DB_DEFAULT_DATA}
+    CONFIG_MAP = config["database"]["network_ssid_map"]
     expected_fronthaul_ssid = CONFIG_MAP["Fronthaul"]["default_ssid"]
     expected_backhaul_ssid = CONFIG_MAP["Backhaul"]["default_ssid"]
     # Fetch Fronthaul SSID from DB

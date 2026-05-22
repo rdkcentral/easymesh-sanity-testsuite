@@ -120,7 +120,7 @@ def test_fronthaul_wifi_client_connectivity_with_updated_ssid(config, page, requ
         test_fronthaul_wifi_client_connectivity(config, request, ssh)
         # Revert the SSID back to default value
         print_step("Step 10: Revert the SSID value back to default in RDKB CLI and verify the update on device")
-        default_ssid = conftest.DB_DEFAULT_MAP_DICT["Fronthaul"]["default_ssid"]
+        default_ssid = config["database"]["network_ssid_map"]["Fronthaul"]["default_ssid"]
         ssid_revert_status = playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, default_ssid, 11, paths)
         if ssid_revert_status:
             print_success("Successfully reverted back the SSID to default value")
