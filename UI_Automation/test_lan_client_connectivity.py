@@ -16,6 +16,7 @@
 # limitations under the License.
 
 import pytest
+import utils
 from utils import print_step, print_error, print_success
 
 @pytest.fixture(scope="module", autouse=True)
@@ -35,14 +36,14 @@ def test_lan_client_connectivity(request, ssh):
             pytest.fail(f"LAN client ({client_name}) with MAC {lan_client_mac} is not present in the configuration")
         # Retrieve client details from controller
         fetch_index_cmd = f"""dmcli eRT getv Device.Hosts.Host. | grep -i '{lan_client_mac}' -B 1 | grep -v '^--$' | head -n 1 | awk -F'.' '{{print $(NF-1)}}'"""
-        index = ssh.run("controller", fetch_index_cmd).strip()
+        index = utils.run_command_fetch_output_from_device(fetch_index_cmd, "controller", ssh).strip()
         print(f"Client index command is {fetch_index_cmd} and output retrieved from controller: {index}")
         ip_cmd = f"dmcli eRT getv Device.Hosts.Host.{index}.IPAddress | sed -n 's/.*value: *//p'"
         intf_cmd = f"dmcli eRT getv Device.Hosts.Host.{index}.Layer1Interface | sed -n 's/.*value: *//p'"
         active_cmd = f"dmcli eRT getv Device.Hosts.Host.{index}.Active | sed -n 's/.*value: *//p'"
-        client_ip = ssh.run("controller", ip_cmd).strip()
-        interface = ssh.run("controller", intf_cmd).strip()
-        active_status = ssh.run("controller", active_cmd).strip()
+        client_ip = utils.run_command_fetch_output_from_device(ip_cmd, "controller", ssh).strip()
+        interface = utils.run_command_fetch_output_from_device(intf_cmd, "controller", ssh).strip()
+        active_status = utils.run_command_fetch_output_from_device(active_cmd, "controller", ssh).strip()
         print(f"Client IP: {client_ip}")
         print(f"Interface: {interface}")
         print(f"Active Status: {active_status}")

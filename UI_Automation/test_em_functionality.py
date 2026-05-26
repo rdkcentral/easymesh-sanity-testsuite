@@ -26,21 +26,25 @@ import pytest
 def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     print_step("Entering Test1: test_rdkbcli_update_verify_ssid")
     new_ssid = "TDKB_New_SSID_02"
-    playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 1, paths)
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "ssid", new_ssid, 'Fronthaul', 5000)
+    utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 6)
     #revert the SSID back to default value
-    print_step("Step 8: Revert the SSID value back to default in RDKB CLI and verify the update on device")
+    print_step("Step 8: Revert the SSID value back to default in RDKB CLI and verify the update on devices")
     default_ssid = config["database"]["network_ssid_map"]["Fronthaul"]["default_ssid"]
-    playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, default_ssid, 9, paths)
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 9, "ssid", default_ssid, 'Fronthaul', 5000)
+    utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, default_ssid, 14)
     print_step("Exiting Test1: test_rdkbcli_update_verify_ssid")
 
 def test_rdkbcli_update_verify_password(config, page, request, ssh, paths):
     print_step("Entering Test2: test_rdkbcli_update_verify_password")
     new_pass = "TestTDKB@12345"
-    playwright_utils.verify_password_update_in_controller_and_agent(config, page, request, ssh, new_pass, 1, paths)
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "passphrase", new_pass, 'Fronthaul', 15000)
+    utils.verify_password_update_in_controller_and_agent(config, request, ssh, new_pass, 6)
     #revert the Passphrase back to default value
     print_step("Step 8: Revert the Passphrase value back to default in RDKB CLI and verify the update on device")
     default_pass = config["database"]["network_ssid_map"]["Fronthaul"]["default_pass"]
-    playwright_utils.verify_password_update_in_controller_and_agent(config, page, request, ssh, default_pass, 9, paths)
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 9, "passphrase", default_pass, 'Fronthaul', 15000)
+    utils.verify_password_update_in_controller_and_agent(config, request, ssh, default_pass, 14)
     print_step("Exiting Test2: test_rdkbcli_update_verify_password")
 
 @pytest.mark.skip(reason="Need clarification from dev on operating class changing intermittently. Issue is tracked as part of ticket RDKBWIFI-424")
@@ -147,7 +151,7 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
     print("Device sync completed")
     #Verify Channel change on device via SSH command execution
     print_step("Step 12: Fetch the updated channel value from Controller device")
-    ctrl_out = ssh.run("controller", "iw dev mld0 info")
+    ctrl_out = utils.run_command_fetch_output_from_device("iw dev mld0 info", "controller", ssh)
     ctrl_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', ctrl_out, re.S)
     if ctrl_match:
         updated_channel_ctrl_device = ctrl_match.group(1)
@@ -163,7 +167,7 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
     print_step("Step 13: Fetch the updated channel value from Agent devices")
     for extender in ssh.enabled_extenders:
         print_step(f"Fetching updated channel value from Agent device: {extender}")
-        agent_out = ssh.run(extender, "iw dev mld0 info")
+        agent_out = utils.run_command_fetch_output_from_device("iw dev mld0 info", extender, ssh)
         agent_match = re.search(rf'link ID\s+{link_id}.*?channel\s+(\d+)', agent_out, re.S)
         if agent_match:
             updated_channel_agent_device = agent_match.group(1)
