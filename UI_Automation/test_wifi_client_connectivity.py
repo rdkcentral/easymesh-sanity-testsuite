@@ -111,7 +111,8 @@ def test_fronthaul_wifi_client_connectivity_with_updated_ssid(config, page, requ
     print_step("Entering Test2: test_fronthaul_wifi_client_connectivity_with_updated_ssid")
     print_step("Step 1: Update the fronthaul SSID from RDKB-CLI and verify the update on controller and agent devices")
     new_ssid = "TDKB_New_SSID_01"
-    ssid_update_status = playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, new_ssid, 2, paths)
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "ssid", new_ssid, 'Fronthaul', 5000)
+    ssid_update_status = utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 6)
     if ssid_update_status:
         # Wait 60 sec for the updated ssid to broadcast
         time.sleep(60)
@@ -121,7 +122,8 @@ def test_fronthaul_wifi_client_connectivity_with_updated_ssid(config, page, requ
         # Revert the SSID back to default value
         print_step("Step 10: Revert the SSID value back to default in RDKB CLI and verify the update on device")
         default_ssid = config["database"]["network_ssid_map"]["Fronthaul"]["default_ssid"]
-        ssid_revert_status = playwright_utils.verify_ssid_update_in_controller_and_agent(config, page, request, ssh, default_ssid, 11, paths)
+        playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "ssid", default_ssid, 'Fronthaul', 5000)
+        ssid_revert_status = utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, default_ssid, 6)        
         if ssid_revert_status:
             print_success("Successfully reverted back the SSID to default value")
         else:

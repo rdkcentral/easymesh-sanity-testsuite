@@ -158,7 +158,8 @@ def test_determine_topology_type_from_brctl_command(config, request, ssh):
         # Dump station details for controller-connected extenders
         print_step("Step 2: Retrieve station dump details for controller-connected extenders.")
         for sta_iface in sta_interfaces:
-            dump_output = ssh.run("controller", f"iw dev {sta_iface} station dump")
+            dump_output = utils.run_command_fetch_output_from_device(f"iw dev {sta_iface} station dump", "controller", ssh)
+
             if not dump_output.strip():
                 pytest.fail(f"No station dump information found for interface {sta_iface}.")
             else:

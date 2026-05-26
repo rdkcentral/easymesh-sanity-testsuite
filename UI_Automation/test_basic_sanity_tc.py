@@ -26,48 +26,35 @@ import time
 
 def test_onewifi_service_status(request, ssh):
     print_step("Entering Test1: test_onewifi_service_status")
-    step = 1
-    for device in ssh.device_list:
-        out = ssh.run(device, "systemctl is-active onewifi")
-        print_step(f"Step {step}: Verify Onewifi service on {device}")
-        utils.verify_service_status(request, "Onewifi", device, out)
-        step += 1
+    for step, device in enumerate(ssh.device_list, start=1):
+        utils.verify_service_status(request, device, "onewifi", ssh, step)
     print_step("Exiting Test1: test_onewifi_service_status")
-
+	
 def test_verify_core_files_presence(request, ssh):
     print_step("Entering Test2: test_verify_core_files_presence")
-    print_step(f"Step 1: Check for presence of core dump files in /tmp directory on controller and agent devices")    
     utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test2: test_verify_core_files_presence")
 
 def test_ieee1905_em_ctrl_service_status(request, ssh):
     print_step("Entering Test3: test_ieee1905_em_ctrl_service_status")
-    ctrl_out = ssh.run("controller", "systemctl is-active ieee1905_em_ctrl")       
-    print_step("Step 1: Verify if IEEE1905 EM CTRL service is running on controller device")
-    utils.verify_service_status(request, "IEEE1905 EM CTRL", "controller", ctrl_out)
+    utils.verify_service_status(request, "controller", "ieee1905_em_ctrl", ssh, 1)
     print_step("Exiting Test3: test_ieee1905_em_ctrl_service_status")
 
 def test_em_ctrl_service_status(request, ssh):
     print_step("Entering Test4: test_em_ctrl_service_status")
-    ctrl_out = ssh.run("controller", "systemctl is-active em_ctrl")       
-    print_step("Step 1: Verify if EM CTRL service is running on controller device")
-    utils.verify_service_status(request, "EM CTRL", "controller", ctrl_out)
+    utils.verify_service_status(request, "controller", "em_ctrl", ssh, 1)
     print_step("Exiting Test4: test_em_ctrl_service_status")
 
 def test_ieee1905_em_agent_service_status(request, ssh):
     print_step("Entering Test5: test_ieee1905_em_agent_service_status")
-    for count, device in enumerate(ssh.device_list, start=1):
-        out = ssh.run(device, "systemctl is-active ieee1905_em_agent")
-        print_step(f"Step {count}: Verify IEEE1905 EM AGENT service on {device}")
-        utils.verify_service_status(request, "IEEE1905 EM AGENT", device, out)
+    for step, device in enumerate(ssh.device_list, start=1):
+        utils.verify_service_status(request, device, "ieee1905_em_agent", ssh, step)
     print_step("Exiting Test5: test_ieee1905_em_agent_service_status")
 
 def test_em_agent_service_status(request, ssh):
     print_step("Entering Test6: test_em_agent_service_status")
-    for count, device in enumerate(ssh.device_list, start=1):
-        out = ssh.run(device, "systemctl is-active em_agent.service")
-        print_step(f"Step {count}: Verify EM AGENT service on {device}")
-        utils.verify_service_status(request, "EM AGENT", device, out)
+    for step, device in enumerate(ssh.device_list, start=1):
+        utils.verify_service_status(request, device, "em_agent", ssh, step)
     print_step("Exiting Test6: test_em_agent_service_status")
 
 def test_db_values_match_default_json(config, request, ssh): 
@@ -145,15 +132,9 @@ def test_log_files_presence(request, ssh, pattern, ctrl_expected, agent_expected
     print_step("Entering Test8: test_log_files_presence")
     for count, device in enumerate(ssh.device_list, start=1):
         print_step(f"Step {count}: Verify if {pattern} log files are present on {device}")
-        command = f"find /tmp -maxdepth 1 -type f -name '{pattern}' | wc -l"
-        out = ssh.run(device, command)
-        print(f"Command output from {device}: {out}")
-        try:
-            count_found = int(out.strip())
-        except ValueError:
-            print_error(request, f"Invalid output received from {device}: {out}")
+        count_found = utils.run_command_fetch_output_from_device(f"find /tmp -maxdepth 1 -type f -name '{pattern}' | wc -l", device, ssh)
         expected_count = ctrl_expected if device == "controller" else agent_expected
-        if count_found != expected_count:
+        if int(count_found.strip()) != expected_count:
             print_error(request,
                 f"Expected {expected_count} log files not found in /tmp on {device}.\n"
                 f"Actual count: {count_found}"
@@ -224,7 +205,7 @@ def test_verify_agent_connectivity_to_default_gateway(request, ssh):
     print_step("Entering Test10: test_verify_agent_connectivity_to_default_gateway")
     for extender in ssh.enabled_extenders:
         print_step(f"Step 1: Verify agent connectivity to default gateway through extender {extender}")
-        agent_out = ssh.run(extender, "ping 10.0.0.1 -c 5")
+        agent_out = utils.run_command_fetch_output_from_device("ping 10.0.0.1 -c 5", extender, ssh)
         print_step("Step 2: Verify agent connectivity to default gateway")
         print(f"Ping output:\n{agent_out}")
         if "0% packet loss" not in agent_out:
@@ -237,9 +218,9 @@ def test_ssh_controller_agent_connectivity(ssh):
     print_step("Entering Test11: test_ssh_controller_agent_connectivity")
     for count, device in enumerate(ssh.device_list, start=1):
         print_step(f"Step {count}: Verify SSH connectivity to {device} device")
-        out = ssh.run(device, "cat /version.txt")
+        out = utils.run_command_fetch_output_from_device("cat /version.txt", device, ssh)
         print_success(f"SSH connectivity to {device} verified successfully. Firmware version: {out.strip()}")
-    print_step("Exiting Test11: test_ssh_controller_agent_connectivity")
+    print_step("Exiting Test11: test_ssh_controller_agent_connectivity")	
 
 def test_verify_rdkbcli_browser_launch(config, page):
     print_step("Entering Test12: test_verify_rdkbcli_browser_launch")

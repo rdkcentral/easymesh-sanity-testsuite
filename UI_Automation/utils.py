@@ -38,17 +38,25 @@ def print_success(message):
     print(f"\033[92mPASS: {message}\033[0m")  # Green text
     return f'<span style="color:green; font-weight:bold;">PASS: {message}</span>'
 
-def verify_service_status(request, service_name, device, output):
-    print(f"{service_name} service status command output from {device}: {output}")
-    if "active" not in output:
-        print_error(request, f"{service_name} service is NOT running on {device}:\n{output}")
+def run_command_fetch_output_from_device(command, device, ssh):
+    try:
+        out = ssh.run(device, command)
+        return out
+    except Exception as e:
+        pytest.fail(f"Failed to run the command {command} and fetch output from the {device} device. Error: {e}")
+
+def verify_service_status(request, device, service_name, ssh, step):    
+    print_step(f"Step {step}: Verify {service_name} service status from {device}")
+    out = run_command_fetch_output_from_device(f"systemctl is-active {service_name}", device, ssh)
+    if "active" not in out:
+        print_error(request, f"{service_name} service is NOT running on {device}:\n{out}")
     else:
         print_success(f"{service_name} service is running as expected on {device} device")
 
 def verify_core_dump_generated(request, ssh):
-    for device in ssh.device_list:
-        out = ssh.run(device, command="ls /tmp/*dmp* 2>/dev/null")        
-        print(f"Core files presence command output from {device}: {out}")
+    for step, device in enumerate(ssh.device_list, start=1):
+        print_step(f"Step {step}: Verify core files presence in /tmp directory from {device}")
+        out = run_command_fetch_output_from_device("ls /tmp/*dmp* 2>/dev/null", device, ssh)        
         if out.strip():
             print_error(request, f"Fail: Dump files found in /tmp on {device}:\n{out}")
         else:
@@ -64,7 +72,7 @@ def get_client_wifi_intf(client_ip, client_user, client_pass, ssh):
 
 def get_interface_mac_address(device, interface_name, ssh):
     # Run ifconfig remotely via SSH
-    output = ssh.run(device, f"ifconfig {interface_name}")
+    output = run_command_fetch_output_from_device(f"ifconfig {interface_name}", device, ssh)
     # Parse MAC address
     mac_match = re.search(r"(?:HWaddr|ether)\s+([0-9a-fA-F:]{17})", output, re.IGNORECASE)
     if not mac_match:
@@ -76,8 +84,27 @@ def get_interface_mac_address(device, interface_name, ssh):
 def get_db_values(config, ssh, query):
     #Run MySQL query on device via SSH and return output
     cmd = f"mysql -N --batch -u {config['database']['user']} -p{config['database']['pass']} -D {config['database']['name']} -e \"{query}\""
-    ctrl_out = ssh.run("controller", cmd)
+    ctrl_out = run_command_fetch_output_from_device(cmd, "controller", ssh)
     return ctrl_out
+
+def _get_non_empty_mysql_rows(query_out):
+    # Preserve in-row separators while dropping blank lines.
+    return [line.rstrip("\r") for line in query_out.splitlines() if line.strip()]
+
+def _parse_ssid_passphrase_row(row):
+    # MySQL --batch is tab-delimited; keep a whitespace fallback for safety.
+    if "\t" in row:
+        ssid, password = row.split("\t", 1)
+        return ssid.strip(), password.strip()
+
+    parts = row.split(None, 1)
+    if len(parts) == 2:
+        return parts[0].strip(), parts[1].strip()
+
+    pytest.fail(
+        "Invalid DB row format for SSID/PassPhrase. "
+        f"Expected two columns but got: '{row}'"
+    )
 
 def wifi_reset_dialog_handler(dialog):
     #Handle the popup by capturing its message and confirming OK based on the message.
@@ -97,7 +124,7 @@ def get_reset_json_data(config, ssh):
     #Read Reset.json from the controller and return parsed data.
     reset_json_file = config["system"]["reset_json_file"]
     cmd = f"cat {reset_json_file}"
-    out = ssh.run("controller", cmd)
+    out = run_command_fetch_output_from_device(cmd, "controller", ssh)
     try:
         data = json.loads(out)
     except Exception as e:
@@ -134,17 +161,19 @@ def normalize_bool(val):
 def get_fronthaul_credentials(config, ssh):
     #Fetch the current fronthaul SSID and password from OneWifiMesh DB
     try:
-        query = (f"SELECT SSID, PassPhrase FROM {config['database']['ssid_table']} WHERE ID LIKE '%Fronthaul%OneWifiMesh%';")
+        query = (
+            f"SELECT SSID, PassPhrase FROM {config['database']['ssid_table']} "
+            "WHERE ID='Fronthaul@OneWifiMesh' LIMIT 1;"
+        )
         query_out = get_db_values(config, ssh, query)
         # Check if query returned anything
         if not query_out.strip():
             pytest.fail("No fronthaul SSID entry found in DB matching pattern")
-        # Split lines in case multiple rows returned
-        rows = query_out.strip().splitlines()
+        rows = _get_non_empty_mysql_rows(query_out)
         if len(rows) != 1:
-            pytest.fail(f"Expected exactly 1 matching fronthaul SSID row, found {len(rows)} rows")
+            pytest.fail(f"Expected exactly 1 fronthaul SSID row, found {len(rows)} rows")
         # Extract SSID and password from query output
-        ssid, password = rows[0].split("\t")
+        ssid, password = _parse_ssid_passphrase_row(rows[0])
         if not ssid or not password:
             pytest.fail("Fetched fronthaul SSID or password is empty")
         print(f"Fetched fronthaul credentials: SSID={ssid}, Password={password}")
@@ -155,7 +184,7 @@ def get_fronthaul_credentials(config, ssh):
 def get_fronthaul_bssids(device, ssh):
     # Fetch all BSSID values for the fronthaul network, includes 2.4GHz, 5GHz, and 6GHz radios.
     try:
-        iw_output = ssh.run(device, "iw dev mld0 info")
+        iw_output = run_command_fetch_output_from_device("iw dev mld0 info", device, ssh)
     except Exception as e:
         pytest.fail(f"Failed to fetch BSSIDs from {device}: {e}")
     bssids = re.findall(r"link addr ([0-9a-fA-F:]{17})", iw_output)
@@ -191,7 +220,7 @@ def fetch_tr181_topology_verification_params(ssh):
     # Fetch the required TR-181 parameters required for topology validation
     # Get number of devices (Agent and extender)
     cmd_device_count = "dmcli eRT getv Device.WiFi.DataElements.Network.DeviceNumberOfEntries | grep 'value:'"
-    output = ssh.run("controller", cmd_device_count)
+    output = run_command_fetch_output_from_device(cmd_device_count, "controller", ssh)
     print(f"Output for device count command: {output}")
     if not output:
         pytest.fail(f"SSH command returned empty output: {cmd_device_count}")
@@ -203,7 +232,7 @@ def fetch_tr181_topology_verification_params(ssh):
     for i in range(1, device_count + 1):
         # Get unique ID (Mac address) for each device
         cmd_device_id = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.ID | grep 'value:'"
-        output = ssh.run("controller", cmd_device_id)
+        output = run_command_fetch_output_from_device(cmd_device_id, "controller", ssh)
         print(f"Output for device {i} ID command: {output}")
         if not output:
             pytest.fail(f"Error fetching device ID for device index {i}: got empty output")
@@ -214,7 +243,7 @@ def fetch_tr181_topology_verification_params(ssh):
         device_ssid_map[device_id] = {}
         # Get number of Radios for each device
         cmd_radio_count = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.RadioNumberOfEntries | grep 'value:'"
-        output = ssh.run("controller", cmd_radio_count)
+        output = run_command_fetch_output_from_device(cmd_radio_count, "controller", ssh)
         print(f"Output for device {i} radio count command: {output}")
         if not output:
             pytest.fail(f"Error fetching radio number of entries for device index {i}: got empty output")
@@ -225,7 +254,7 @@ def fetch_tr181_topology_verification_params(ssh):
         for r in range(1, radio_count + 1):
             # Get number of BSS entries for each Radio
             cmd_bss_count = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.Radio.{r}.BSSNumberOfEntries | grep 'value:'"
-            output = ssh.run("controller", cmd_bss_count)
+            output = run_command_fetch_output_from_device(cmd_bss_count, "controller", ssh)
             print(f"Output for device {i} radio {r} BSS count command: {output}")
             if not output:
                 pytest.fail(f"Error fetching BSS number of entries for device index {i}, radio index {r}: got empty output")
@@ -236,7 +265,7 @@ def fetch_tr181_topology_verification_params(ssh):
             for b in range(1, bss_count + 1):
                 # Get SSID value for each BSS
                 cmd_ssid = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.Radio.{r}.BSS.{b}.SSID | grep 'value:'"
-                ssid_output = ssh.run("controller", cmd_ssid)
+                ssid_output = run_command_fetch_output_from_device(cmd_ssid, "controller", ssh)
                 print(f"Output for device {i} radio {r} BSS {b} SSID command: {ssid_output}")
                 if not ssid_output:
                     pytest.fail(f"Error fetching SSID for device index {i}, radio index {r}, BSS index {b}: got empty output")
@@ -246,7 +275,7 @@ def fetch_tr181_topology_verification_params(ssh):
                 ssid = match.group(1).strip()
                 # Get BSSID value for each BSS
                 cmd_bssid = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.Radio.{r}.BSS.{b}.BSSID | grep 'value:'"
-                bssid_output = ssh.run("controller", cmd_bssid)
+                bssid_output = run_command_fetch_output_from_device(cmd_bssid, "controller", ssh)
                 print(f"Output for device {i} radio {r} BSS {b} BSSID command: {bssid_output}")
                 if not bssid_output:
                     pytest.fail(f"Error fetching BSSID for device index {i}, radio index {r}, BSS index {b}: got empty output")
@@ -261,7 +290,7 @@ def fetch_tr181_topology_verification_params(ssh):
         for ssid_name in device_ssid_map[device_id]:
             if ssid_name.lower().startswith("private"):
                 cmd_mld_mac = f"dmcli eRT getv Device.WiFi.DataElements.Network.Device.{i}.APMLD.1.MLDMACAddress | grep 'value:'"
-                output = ssh.run("controller", cmd_mld_mac)
+                output = run_command_fetch_output_from_device(cmd_mld_mac, "controller", ssh)
                 print(f"Output for device {i} MLD MAC command: {output}")
                 if output:
                     mld_mac_match = re.search(r"value:\s*([0-9a-f:]{17})", output, re.I)
@@ -274,7 +303,7 @@ def fetch_tr181_topology_verification_params(ssh):
 
 def get_sta_interfaces_from_bridge(ssh, device, bridge_intf):
     # Get the list of station interfaces from the bridge.
-    br_output = ssh.run(device, f"brctl show {bridge_intf}")
+    br_output = run_command_fetch_output_from_device(f"brctl show {bridge_intf}", device, ssh)
     # Fail if the bridge command output is empty
     if not br_output.strip():
         pytest.fail(f"No output returned from 'brctl show {bridge_intf}' on {device}")
@@ -318,7 +347,7 @@ def extract_mac_from_dump(dump_output):
 
 def get_station_mac(device, sta_iface, ssh):
     # Fetch the station MAC address from the station dump output
-    dump = ssh.run(device, f"iw dev {sta_iface} station dump")
+    dump = run_command_fetch_output_from_device(f"iw dev {sta_iface} station dump", device, ssh)
     if not dump.strip():
         pytest.fail(f"No station dump output found on {device} for interface {sta_iface}")
     mac = extract_mac_from_dump(dump)
@@ -415,7 +444,7 @@ def validate_all_configured_vaps_are_up(config, ssh):
     expected_ssids = [ssid_map[name]["default_ssid"] for name in ["Fronthaul", "IoT", "Backhaul"]]
     for device in ssh.device_list:
         try:
-            out = ssh.run(device, "iw dev | grep ssid")
+            out = run_command_fetch_output_from_device("iw dev | grep ssid", device, ssh)
         except Exception as e:
             errors.append(f"Unable to fetch configured VAPs on {device}: {e}")
             continue
@@ -439,7 +468,7 @@ def verify_mld0_interface_presence(ssh):
     command = "iw dev mld0 info && (iw dev mld0 info | wc -l)"
     for step, device in enumerate(ssh.device_list, start=1):
         try:
-            out = ssh.run(device, command)
+            out = run_command_fetch_output_from_device(command, device, ssh)
         except Exception as e:
             errors.append(f"Unable to verify mld0 interface on {device}: {e}")
             continue
@@ -469,7 +498,7 @@ def verify_mld0_links_to_privatevaps(ssh):
     command_links = "iw dev mld0 info | grep 'link ID' | wc -l"
     for step, device in enumerate(ssh.device_list, start=1):
         try:
-            out = ssh.run(device, command_links)
+            out = run_command_fetch_output_from_device(command_links, device, ssh)
         except Exception as e:
             errors.append(f"Unable to check mld0 link count on {device}: {e}")
             continue
@@ -488,13 +517,13 @@ def verify_mld0_links_to_privatevaps(ssh):
             # Get wifi MAC
             wifi_cmd = f"iw dev wifi{link_id} info | awk '/addr/ {{print $2}}'"
             try:
-                wifi_mac = ssh.run(device, wifi_cmd).strip().replace("\r", "")
+                wifi_mac = run_command_fetch_output_from_device(wifi_cmd, device, ssh).strip().replace("\r", "")
             except Exception as e:
                 errors.append(f"Unable to fetch wifi{link_id} MAC on {device}: {e}")
                 continue
             # Get mld0 MAC for this link (parse in Python)
             try:
-                mld_out = ssh.run(device, "iw dev mld0 info")
+                mld_out = run_command_fetch_output_from_device("iw dev mld0 info", device, ssh)
             except Exception as e:
                 errors.append(f"Unable to fetch mld0 details on {device} for link {link_id}: {e}")
                 continue
@@ -539,7 +568,7 @@ def verify_mesh_backhaul_interfaces(config, ssh):
         print(f"  Step {count}: Verifying mesh backhaul SSID on {device} interface {interface}")
         cmd = f"iw dev {interface} info | grep ssid | awk '{{print $2}}'"
         try:
-            out = ssh.run(device, cmd).strip()
+            out = run_command_fetch_output_from_device(cmd, device, ssh).strip()
         except Exception as e:
             errors.append(f"Unable to verify mesh backhaul SSID on {device} interface {interface}: {e}")
             continue
@@ -576,7 +605,7 @@ def verify_mesh_backhaul_extenders_connected(config, ssh):
         # Get full interface info
         cmd_info = f"iw dev {interface} info"
         try:
-            info_out = ssh.run("controller", cmd_info).strip()
+            info_out = run_command_fetch_output_from_device(cmd_info, "controller", ssh).strip()
         except Exception as e:
             errors.append(f"Failed to fetch interface info for {interface}: {e}")
             continue
@@ -584,7 +613,7 @@ def verify_mesh_backhaul_extenders_connected(config, ssh):
         # Check connected extenders
         cmd_dump = f"iw dev {interface} station dump"
         try:
-            station_out = ssh.run("controller", cmd_dump).strip()
+            station_out = run_command_fetch_output_from_device(cmd_dump, "controller", ssh).strip()
         except Exception as e:
             errors.append(f"Failed to fetch station dump for {interface}: {e}")
             continue
@@ -595,3 +624,66 @@ def verify_mesh_backhaul_extenders_connected(config, ssh):
         else:
             print(f"Pass: Interface {interface} has extenders connected\n")
     return errors
+
+def verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, step):
+    # Retry ssid update check logic after wait time
+    max_retries = 10
+    retry_interval = 10000  # 10 sec
+    print_step(f"Step {step}: Initial wait before device ssid verification")
+    page.wait_for_timeout(20000)
+    print_step(f"Step {step+1}: Verify SSID update on both controller and agent.")
+    for attempt in range(max_retries):
+        print(f"SSID verification attempt : {attempt + 1}")
+        results = {}
+        for device in ssh.device_list:
+            out = run_command_fetch_output_from_device("iw dev mld0 info | awk '/ssid/ {print $2}'", device, ssh)
+            value = out.strip() if out else ""
+            if value != "":
+                print(f"Updated SSID from {device} device: {value}")
+            else:
+                print_error(request, f"Failed to fetch SSID from {device} device on attempt {attempt + 1}")
+            results[device] = value
+        if all(v == new_ssid for v in results.values()):
+            print_success(f"SSID successfully updated on all devices. Expected: {new_ssid}, Results: {results}")
+            return True
+        # Retry attempt logic
+        if attempt < max_retries:
+            print(f"SSID not updated yet. Expected: {new_ssid}, Results: {results}. Retrying in {retry_interval // 1000} seconds.")
+            page.wait_for_timeout(retry_interval)
+    # SSID failure
+    print_error(request, f"SSID update FAILED after retries. Expected: {new_ssid}, Results: {results}")
+    return False
+
+def verify_password_update_in_controller_and_agent(config, request, ssh, new_pass, step):
+    #Add 35s delay to allow changes to apply on device before SSH verification
+    time.sleep(70)
+    #Verify Password update on device via SSH command execution
+    print_step(f"Step {step}: Fetch updated Password from controller device")
+    query = (
+        f"SELECT PassPhrase FROM {config['database']['ssid_table']} "
+        "WHERE ID='Fronthaul@OneWifiMesh' LIMIT 1;"
+    )
+    query_out = get_db_values(config, ssh, query)
+    if not query_out or not query_out.strip():
+        print_error(request, "DB query returned empty output. Unable to fetch password.")
+        return False
+    else:
+        rows = _get_non_empty_mysql_rows(query_out)
+        if len(rows) != 1:
+            print_error(request, f"Expected exactly 1 password row, found {len(rows)} rows")
+            return False
+
+        fronthaul_password = rows[0].strip()
+        if not fronthaul_password:
+            print_error(request, "Fetched Password from DB is empty")
+            return False
+
+        print_success(f"Updated Password from controller device: {fronthaul_password}")
+        #Final validation to check if Password updates are consistent on controller device and match the expected value from test data. If there is a mismatch, print appropriate error message and fail the test.
+        print_step(f"Step {step+1}: Validate if updated Password is consistent on controller device and matches the expected value")
+        if len(fronthaul_password.strip()) != 0 and fronthaul_password.strip() != new_pass:
+            print_error(request, f"Password update validation failed on controller device. Expected: {new_pass}, Actual: {fronthaul_password.strip()}")
+            return False       
+        else:
+            print_success(f"Password update verification passed on controller device with expected value '{new_pass}'.")
+            return True

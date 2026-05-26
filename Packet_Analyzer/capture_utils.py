@@ -16,11 +16,11 @@
 # limitations under the License.
 
 import time
-from UI_Automation.utils import print_success, print_error
+from UI_Automation.utils import *
 
 def capture_packets(ssh, interface, filter, snap_length, capture_file_location):
     cmd = f"setsid tcpdump -i {interface} {filter} -s {snap_length} -w {capture_file_location} > /dev/null 2>&1 &  sleep 2 && pgrep -n tcpdump"
-    pid = ssh.run("controller", cmd).strip()
+    pid = run_command_fetch_output_from_device(cmd, "controller", ssh).strip()
     print_success(f"Packet capture started with PID: {pid}")
     time.sleep(5)
     if not pid:
@@ -28,7 +28,7 @@ def capture_packets(ssh, interface, filter, snap_length, capture_file_location):
     return pid
 
 def stop_packet_capture(ssh, pid):
-    out = ssh.run("controller", f"kill -2 {pid}")
+    out = run_command_fetch_output_from_device(f"kill -2 {pid}", "controller", ssh)
     time.sleep(5)  # Wait for tcpdump to flush and close the pcap file
     print_success(f"Packet capture stopped for PID {pid}.")
 
