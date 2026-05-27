@@ -158,8 +158,9 @@ def normalize_bool(val):
     #Normalize DB boolean-like values (1, 0, true, false, yes, no) to Python bool.
     return str(val).lower() in ["1", "true", "yes"]
 
-def get_fronthaul_credentials(config, ssh):
-    #Fetch the current fronthaul SSID and password from OneWifiMesh DB
+def get_fronthaul_credentials(config, request, ssh, step):
+    # Fetch the current fronthaul SSID and password from OneWifiMesh DB
+    print_step(f"\nStep {step}: Fetch SSID and password for fronthaul network from Database")
     try:
         query = (
             f"SELECT SSID, PassPhrase FROM {config['database']['ssid_table']} "
@@ -168,30 +169,41 @@ def get_fronthaul_credentials(config, ssh):
         query_out = get_db_values(config, ssh, query)
         # Check if query returned anything
         if not query_out.strip():
-            pytest.fail("No fronthaul SSID entry found in DB matching pattern")
+            print_error(request, "No fronthaul SSID entry found in DB matching pattern")
+            return None, None
         rows = _get_non_empty_mysql_rows(query_out)
         if len(rows) != 1:
-            pytest.fail(f"Expected exactly 1 fronthaul SSID row, found {len(rows)} rows")
+            print_error(request, f"Expected exactly 1 fronthaul SSID row, found {len(rows)} rows")
+            return None, None
         # Extract SSID and password from query output
         ssid, password = _parse_ssid_passphrase_row(rows[0])
         if not ssid or not password:
-            pytest.fail("Fetched fronthaul SSID or password is empty")
+            print_error(request, "Fetched fronthaul SSID or password is empty")
+            return None, None
         print(f"Fetched fronthaul credentials: SSID={ssid}, Password={password}")
+        print_success("Fronthaul SSID and password fetched successfully.")
         return ssid, password
     except Exception as e:
-        pytest.fail(f"Failed to fetch fronthaul credentials from DB: {e}")
+        print_error(request, f"Failed to fetch fronthaul credentials from DB: {e}")
+        return None, None
 
-def get_fronthaul_bssids(device, ssh):
+def get_fronthaul_bssids(device, request, ssh, step):
+    # Get all AP BSSID values (2.4GHz, 5GHz, 6GHz) for fronthaul network verification
+    print_step(f"Step {step}: Fetch BSSID values for fronthaul from {device}")
     # Fetch all BSSID values for the fronthaul network, includes 2.4GHz, 5GHz, and 6GHz radios.
     try:
         iw_output = run_command_fetch_output_from_device("iw dev mld0 info", device, ssh)
     except Exception as e:
-        pytest.fail(f"Failed to fetch BSSIDs from {device}: {e}")
+        print_error(request, f"Failed to fetch BSSIDs from {device}: {e}")
+        return None
     bssids = re.findall(r"link addr ([0-9a-fA-F:]{17})", iw_output)
-    if not bssids:
-        pytest.fail(f"No fronthaul BSSIDs found on {device}")
-    print(f"Fetched BSSIDs from {device}: {bssids}")
-    return bssids
+    if bssids:
+        print(f"Fetched BSSIDs from {device}: {bssids}")
+        print_success(f"BSSIDs fetched successfully: {bssids}")
+        return [bssid.lower() for bssid in bssids]
+    else:
+        print_error(request, f"No fronthaul BSSIDs found on {device}")
+        return None
 
 def verify_client_ip_and_internet(client_ip, client_user, client_pass, ssh, step):
     #Verify client interface has obtained an IP address and can reach the internet by pinging an external host.
@@ -205,7 +217,7 @@ def verify_client_ip_and_internet(client_ip, client_user, client_pass, ssh, step
         if not client_ip:
             pytest.fail(f"Client interface '{client_wifi_intf}' did not obtain an IP address from fronthaul network")
         print_success(f"Client obtained IP address on {client_wifi_intf}: {client_ip}")
-        print_step(f"Step {step}b: Verify internet connectivity from client interface '{client_wifi_intf}' by pinging www.google.com")
+        print_step(f"Step {step+1}: Verify internet connectivity from client interface '{client_wifi_intf}' by pinging www.google.com")
         # Step 2: Test internet connectivity using ping via the assigned IP/interface
         client_ping_out = ssh.run_client(client_ip, client_user, client_pass, f"ping -I {client_wifi_intf} -c 5 www.google.com")
         # Fail if ping reports any packet loss
@@ -687,3 +699,93 @@ def verify_password_update_in_controller_and_agent(config, request, ssh, new_pas
         else:
             print_success(f"Password update verification passed on controller device with expected value '{new_pass}'.")
             return True
+
+def perform_wifi_scan_and_extract_bssid(client_name, wifi_client, fronthaul_ssid, request, ssh, step):
+    # Execute WiFi scan on the client and filter results for the target SSID
+    print_step(f"Step {step}: Perform WiFi Scan from {client_name} to discover available BSSIDs for SSID : {fronthaul_ssid}")
+    # Before performing a Wi-Fi scan, it's best to disconnect the Wi-Fi interface if it is currently connected to any network to avoid scan issues.
+    scan_cmd = f"nmcli -t -f BSSID,SSID device wifi list | grep {fronthaul_ssid}"
+    print_step(f"Performing Wi-Fi scan from {client_name}")
+    client_ip = wifi_client["ip"]
+    client_user = wifi_client["user"]
+    client_pass = wifi_client["pass"]
+    client_scan = get_wifi_scan_result(client_ip, client_user, client_pass, fronthaul_ssid, ssh, scan_cmd)
+    if client_scan:
+        print_success("WiFi scan completed successfully.")
+    else:
+        print_error(request, "WiFi scan returned no results.")
+        return []
+    # Process scan results to extract valid BSSIDs
+    client_scan_lines = []
+    for line in client_scan.splitlines():
+        line = line.replace("\\:", ":")
+        if fronthaul_ssid in line and re.match(r"([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", line):
+            client_scan_lines.append(line)
+    # Fail the test if no valid BSSIDs were found after parsing
+    if client_scan_lines:
+        print_success(f"Valid BSSIDs found in scan: {client_scan_lines}")
+    else:
+        print_error(request, f"No {fronthaul_ssid} networks found on client")
+        return []
+    # Parse visible BSSIDs
+    visible_bssids = []
+    for line in client_scan_lines:
+        bssid = line.split(":")[0] + ":" + ":".join(line.split(":")[1:6])
+        visible_bssids.append(bssid.lower())
+    print(f"Visible BSSIDs on {client_name}: {visible_bssids}")
+    return visible_bssids
+
+def connect_client_to_target_bssid(client_name, wifi_client, fronthaul_ssid, fronthaul_password, bssids, visible_bssids, request, ssh, device, step):
+    # Select the first AP BSSID that is currently visible to the client
+    print_step(f"Step {step}: Select the {device} BSSID that is currently visible")
+    target_bssid = next((mac for mac in bssids if mac in visible_bssids), None)
+    if target_bssid:
+        print(f"Selected BSSID for {client_name} connection: {target_bssid}")
+        print_success(f"Selected target BSSID: {target_bssid}")
+    else:
+        print_error(request, f"No fronthaul {device} BSSIDs are visible on client for SSID {fronthaul_ssid}")
+        return False
+    target_bssid = target_bssid.upper()
+    # Connect the client to the selected fronthaul BSSID
+    print_step(f"Step {step+1}: Connect the client to BSSID :{target_bssid} via nmcli")
+    client_ip = wifi_client["ip"]
+    client_user = wifi_client["user"]
+    client_pass = wifi_client["pass"]
+    # Fetch wireless interface of client
+    client_wifi_intf = get_client_wifi_intf(client_ip, client_user, client_pass, ssh)
+    connect_cmd = f"sudo -S nmcli device wifi connect '{fronthaul_ssid}' password '{fronthaul_password}' bssid {target_bssid} ifname {client_wifi_intf}"
+    # Execute the command on the client device via SSH
+    client_connect_out = ssh.run_client(client_ip, client_user, client_pass, connect_cmd, sudo_password=client_pass)
+    # Fail the test if the connection was not successful
+    if "successfully activated" in client_connect_out.lower():
+        print_success(f"Client connected to fronthaul network of {device} successfully via the {target_bssid}")
+        print_step(f"\nValidate {client_name}'s IP address assignment and internet connectivity on the wireless interface")
+        # Verify Client IP assignment and internet connectivity
+        try:
+            verify_client_ip_and_internet(client_ip, client_user, client_pass, ssh, step+2)
+            print_success("Client IP/internet verification successful")
+            return True
+        except Exception as e:
+            print_error(request, f"Client IP/internet verification failed: {str(e)}")
+            return False
+    else:
+        print_error(request, f"Client failed to connect to fronthaul network via BSSID {target_bssid}")
+        return False
+
+def validate_fronthaul_client_connectivity(config, request, ssh, step):
+    fronthaul_ssid, fronthaul_password = get_fronthaul_credentials(config, request, ssh, step)
+    if not fronthaul_ssid or not fronthaul_password:
+        return
+    for device in ssh.device_list:
+        print_step(f"\nWireless client connectivity verification on {device}")
+        print("Use the fronthaul credentials obtained in Step 1 as the common credentials for all devices.")
+        bssids = get_fronthaul_bssids(device, request, ssh, step+1)
+        if not bssids:
+            continue
+        for client_name, wifi_client in ssh.enabled_wifi_clients.items():
+            # Perform WiFi scan from each Wi-Fi client and extract target BSSID for client connection
+            print(f"\nVerify {client_name} connectivity with the {device}")
+            visible_bssids = perform_wifi_scan_and_extract_bssid(client_name, wifi_client, fronthaul_ssid, request, ssh, step+2)
+            if not visible_bssids:
+                continue
+            connect_client_to_target_bssid(client_name, wifi_client, fronthaul_ssid, fronthaul_password, bssids, visible_bssids, request, ssh, device, step+3)
