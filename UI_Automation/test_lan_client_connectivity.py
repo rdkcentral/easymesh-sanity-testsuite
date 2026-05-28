@@ -19,12 +19,15 @@ import pytest
 import utils
 from utils import print_step, print_error, print_success
 
+# Documentation: [test_lan_client_connectivity.py](Centralized_Test_Cases.md#test_lan_client_connectivitypy)
+
 @pytest.fixture(scope="module", autouse=True)
 def check_lan_clients(ssh):
     if len(ssh.enabled_lan_clients) == 0:
         print("No enabled LAN client detected. Please connect at least one LAN client. Skipping LAN client connectivity test cases.")
         pytest.skip("Test setup pre-requisite not met: at least one enabled LAN client is required.")
 
+# Documentation: [TC-LAN-01](Centralized_Test_Cases.md#tc-lan-01-test_lan_client_connectivity)
 def test_lan_client_connectivity(request, ssh):
     print_step("Entering Test1: test_lan_client_connectivity")
     for client_name, client_data in ssh.enabled_lan_clients.items():
