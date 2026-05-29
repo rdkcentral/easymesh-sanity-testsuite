@@ -22,18 +22,22 @@ import playwright_utils
 import time
 from utils import print_step, print_error, print_success
 
+# Documentation: [test_wifi_client_connectivity.py](Centralized_Test_Cases.md#test_wifi_client_connectivitypy)
+
 @pytest.fixture(scope="module", autouse=True)
 def check_wifi_clients(ssh):
     if len(ssh.enabled_wifi_clients) == 0:
         print("No enabled Wi-Fi client detected. Please ensure at least one Wi-Fi client is available. Skipping wireless client connectivity test cases.")
         pytest.skip("Test setup pre-requisite not met: at least one enabled Wi-Fi client is required.")
 
+# Documentation: [TC-WIFI-01](Centralized_Test_Cases.md#tc-wifi-01-test_fronthaul_wifi_client_connectivity)
 def test_fronthaul_wifi_client_connectivity(config, request, ssh):
     print_step("Entering Test1: test_fronthaul_wifi_client_connectivity")
     # Verify client connectivity using fronthaul credentials
     utils.validate_fronthaul_client_connectivity(config, request, ssh, step=1)
     print_step("Exiting Test1: test_fronthaul_wifi_client_connectivity")
 
+# Documentation: [TC-WIFI-02](Centralized_Test_Cases.md#tc-wifi-02-test_fronthaul_wifi_client_connectivity_with_updated_ssid)
 def test_fronthaul_wifi_client_connectivity_with_updated_ssid(config, page, request, ssh, paths):
     print_step("Entering Test2: test_fronthaul_wifi_client_connectivity_with_updated_ssid")
     print("Update fronthaul SSID via RDKB-CLI and validate on controller and extender devices")

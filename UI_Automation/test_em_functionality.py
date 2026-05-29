@@ -23,6 +23,9 @@ from utils import print_step, print_error, print_success
 import conftest
 import pytest
 
+# Documentation: [test_em_functionality.py](Centralized_Test_Cases.md#test_em_functionalitypy)
+
+# Documentation: [TC-EM-01](Centralized_Test_Cases.md#tc-em-01-test_rdkbcli_update_verify_ssid)
 def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     print_step("Entering Test1: test_rdkbcli_update_verify_ssid")
     new_ssid = "TDKB_New_SSID_02"
@@ -35,6 +38,7 @@ def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, default_ssid, 14)
     print_step("Exiting Test1: test_rdkbcli_update_verify_ssid")
 
+# Documentation: [TC-EM-02](Centralized_Test_Cases.md#tc-em-02-test_rdkbcli_update_verify_password)
 def test_rdkbcli_update_verify_password(config, page, request, ssh, paths):
     print_step("Entering Test2: test_rdkbcli_update_verify_password")
     new_pass = "TestTDKB@12345"
@@ -47,6 +51,7 @@ def test_rdkbcli_update_verify_password(config, page, request, ssh, paths):
     utils.verify_password_update_in_controller_and_agent(config, request, ssh, default_pass, 14)
     print_step("Exiting Test2: test_rdkbcli_update_verify_password")
 
+# Documentation: [TC-EM-03](Centralized_Test_Cases.md#tc-em-03-test_rdkbcli_channel_change_preference-skipped-in-current-suite)
 @pytest.mark.skip(reason="Need clarification from dev on operating class changing intermittently. Issue is tracked as part of ticket RDKBWIFI-424")
 @pytest.mark.parametrize("radio_cfg", conftest.RADIO_CONFIG)
 def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh, paths):
@@ -181,6 +186,7 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
             print_success(f"Channel Change verification passed in Agent device with updated value {new_channel}.")
     print_step("Entering Test3: test_rdkbcli_channel_change_preference")
 
+# Documentation: [TC-EM-04](Centralized_Test_Cases.md#tc-em-04-test_rdkbcli_wifi_reset_with_default_values)
 def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
     print_step("Entering Test4: test_rdkbcli_wifi_reset_with_default_values")
     # Flag to verify WiFi reset values
@@ -240,6 +246,7 @@ def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
     utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test4: test_rdkbcli_wifi_reset_with_default_values")
 
+# Documentation: [TC-EM-05](Centralized_Test_Cases.md#tc-em-05-test_rdkbcli_wifi_reset_with_custom_values)
 def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
     print_step("Entering Test5: test_rdkbcli_wifi_reset_with_custom_values")
     # Flag to verify WiFi reset values
