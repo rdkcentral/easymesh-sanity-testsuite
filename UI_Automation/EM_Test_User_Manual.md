@@ -65,6 +65,13 @@ The suite validates:
 - Please configure the test setup details as directed in the Configuration section of this document. Minimum 1 extender must be configured in config.yaml under extenders.
 - Minimum of 2 extenders need to be onboarded successfully for running the topology related test test_network_topology.py.
 
+### Steps to execute the sanity test suite
+
+- Clone the repo using the command 'git clone git@github.com:rdkcentral/easymesh-sanity-testsuite.git'
+- Checkout to the latest main branch using 'git checkout main'
+- Navigate to the 'UI_Automation' folder
+- Execute the main.py file inside this folder by following the steps under the section 'Running the main.py file'.
+
 ### Known failures encountered with the test suite execution
 
 | Sl.No | Failed test case name | Description | Bug ID |
@@ -380,9 +387,7 @@ system:
 | --- | --- | --- |
 | 1 | test_lan_client_connectivity | Verify LAN client obtains IP and validates internet connectivity |
 
-## Running the Test Suite
-
-### Method 1: Using main.py (Recommended)
+## Running the main.py file
 
 The main.py file provides a convenient way to execute tests with predefined configurations.
 
