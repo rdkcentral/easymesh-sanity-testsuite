@@ -211,9 +211,9 @@ def playwright_instance():
     playwright.stop()
 
 @pytest.fixture(scope="session")
-def browser(playwright_instance):
+def browser(playwright_instance, config):
     browser = playwright_instance.chromium.launch(        
-        headless=False
+        headless=config.get("browser_options", {}).get("headless_mode", True)
     )
     #channel="msedge" for Edge browser, channel="chrome" for Chrome browser
     yield browser

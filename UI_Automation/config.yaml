@@ -62,3 +62,6 @@ system:
   bridge_intf: brlan0
   wifi_reset_interface: eth0_virt_peer
   reset_json_file: /usr/ccsp/EasyMesh/Reset.json
+
+browser_options:
+  headless_mode: <True/False>

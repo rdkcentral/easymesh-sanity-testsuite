@@ -314,6 +314,9 @@ system:
   bridge_intf: brlan0
   wifi_reset_interface: eth0_virt_peer
   reset_json_file: /usr/ccsp/EasyMesh/Reset.json
+
+browser_options:
+  headless_mode: <True or False>
 ```
 
 ### Supported Keys and Validation Notes
@@ -323,6 +326,7 @@ system:
 - Configure wifi_clients and lan_clients when running Wi-Fi and LAN client tests. Wi-Fi client entries must include enabled, ip, user, and pass fields, while LAN client entries must include enabled, mac, user, and pass fields.
 - database.name, database.user, database.pass, database.ssid_table and database.network_ssid_map are used by DB queries.
 - system.bridge_intf, system.wifi_reset_interface, and system.reset_json_file are used by topology and Wi-Fi reset flows.
+- browser_options.headless_mode are used by the browser fixture in conftest.py file
 
 ### Device Scaling
 
