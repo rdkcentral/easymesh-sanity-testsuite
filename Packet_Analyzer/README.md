@@ -4,6 +4,21 @@ This folder contains utilities and test logic to capture EasyMesh/IEEE 1905.1 tr
 
 The module runs a packet capture during an SSID update workflow, transfers the generated pcap locally, and validates IEEE 1905.1 control traffic from the captured frames.
 
+Please refer to the detailed test case documentation provided in [PacketAnalyzer_Test_Documentation.md](PacketAnalyzer_Test_Documentation.md) file
+
+## Table of Contents
+
+1. [Files](#files)
+	- [Hardware/Network Requirements](#hardwarenetwork-requirements)
+2. [Test Setup Architecture](#test-setup-architecture)
+	- [Packet Analyzer Limitations](#packet-analyzer-limitations)
+3. [Runtime Dependencies](#runtime-dependencies)
+4. [Current Test Flow](#current-test-flow)
+5. [Execution](#execution)
+6. [Report Behavior](#report-behavior)
+7. [Notes](#notes)
+
+
 ## Files
 
 - `capture_utils.py`: Helper functions to start and stop remote tcpdump capture, then transfer the generated pcap file from device to local machine.
