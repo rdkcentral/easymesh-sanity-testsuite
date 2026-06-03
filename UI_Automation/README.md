@@ -2,6 +2,18 @@
 
 This folder contains an automated test suite for EasyMesh/RDKB validation using Pytest, Playwright, and SSH-based device checks.
 
+## Table of Contents
+
+1. [File Overview](#file-overview)
+2. [Test Setup Architecture](#test-setup-architecture)
+3. [System Requirements](#system-requirements)
+4. [Hardware/Network Requirements](#hardwarenetwork-requirements)
+5. [Test Suite Execution Pre-requisites](#test-suite-execution-pre-requisites)
+6. [Configuration](#configuration)
+7. [Steps To Execute The Sanity Test Suite](#steps-to-execute-the-sanity-test-suite)
+8. [Test Case Documentation](#test-case-documentation) 
+9. [Notes](#notes)
+
 ## File Overview
 
 | Name | Short Description |
@@ -19,101 +31,40 @@ This folder contains an automated test suite for EasyMesh/RDKB validation using 
 | Network_topology_screenshots/ | Stores reference topology images (Star and Daisychain layouts) used for visual similarity checks during topology validation tests. |
 | config.yaml | Runtime configuration file containing device credentials, network details, database information, and system-specific parameters for the test environment. |
 
-## Running The Suite
+## Test Setup Architecture
 
-- Run all primary UI automation modules using the project runner:
+For detailed diagrams of the physical test setup and scalability approach, see [Test Setup Architecture](EM_Test_User_Manual.md#test-setup-architecture) in the **EM_Test_User_Manual.md** document.
 
-```bash
-python main.py
-```
+## System Requirements
 
-- `main.py` runs:
-	- `test_basic_sanity_tc.py`
-	- `test_wifi_client_connectivity.py`
-	- `test_lan_client_connectivity.py`
-	- `test_network_topology.py`
-	- `test_em_functionality.py`
+See [System Requirements](EM_Test_User_Manual.md#system-requirements) in [EM_Test_User_Manual.md](EM_Test_User_Manual.md).
 
-- Output artifacts are created under:
-	- `TestRun_<timestamp>/Reports/sanity_report.html`
-	- `TestRun_<timestamp>/Screenshots/`
-	- `TestRun_<timestamp>/Failed_Logs/`
+
+## Hardware/Network Requirements
+
+See [Hardware/Network Requirements](EM_Test_User_Manual.md#hardwarenetwork-requirements) in [EM_Test_User_Manual.md](EM_Test_User_Manual.md).
+
+
+## Test Suite Execution Pre-requisites
+
+See [Test Suite Execution Pre-requisites](EM_Test_User_Manual.md#test-suite-execution-pre-requisites) in [EM_Test_User_Manual.md](EM_Test_User_Manual.md).
+
 
 ## Configuration
 
-Before running the test suite, update `config.yaml` in the project root with your environment-specific values. The `config()` fixture in `conftest.py` loads this file with `yaml.safe_load()` and validates the required sections before any SSH-dependent test runs.
+See [Configuration](EM_Test_User_Manual.md#configuration) in [EM_Test_User_Manual.md](EM_Test_User_Manual.md).
 
-### Validation Rules From `conftest.py`
 
-- The `controller` section must exist and must include non-empty `ip` and `user` values.
-- The `extenders` section must be a valid YAML mapping. Each extender entry must include non-empty `ip` and `user` values, and an `enabled` parameter set to either `True` or `False`. At least one extender must be enabled.
-- The `wifi_clients` and `lan_clients` sections, when present, must be valid YAML mappings. Each WiFi client entry must include non-empty `ip`, `user`, and `pass` values, and each LAN client entry must include non-empty `mac`, `user`, and `pass` values. All client entries must also include an `enabled` parameter set to either `True` or `False`.
+## Steps To Execute The Sanity Test Suite
 
-### `config.yaml` Structure
+See [Steps To Execute The Sanity Test Suite](EM_Test_User_Manual.md#steps-to-execute-the-sanity-test-suite) in [EM_Test_User_Manual.md](EM_Test_User_Manual.md).
 
-#### `controller`
+## Test Case Documentation
 
-| Key | Description |
-| --- | --- |
-| `ip` | IP address of the EasyMesh controller device |
-| `user` | SSH username for the controller |
-
-#### `extenders`
-
-Each entry under `extenders` represents one agent device, for example `ext1`, `ext2`, and so on.
-
-| Key | Description |
-| --- | --- |
-| `enabled` | Extender enabled status (True or False) |
-| `ip` | IP address of the extender or agent |
-| `user` | SSH username for the extender |
-
-#### `wifi_clients`
-
-Each entry under `wifi_clients` represents one Wi-Fi client.
-
-| Key | Description |
-| --- | --- |
-| `enabled` | Wireless client enabled status (True or False) |
-| `ip` | IP address of the Wi-Fi client device |
-| `user` | SSH username for the Wi-Fi client |
-| `pass` | SSH password for the Wi-Fi client |
-
-#### `lan_clients`
-
-Each entry under `lan_clients` represents one wired LAN client.
-
-| Key | Description |
-| --- | --- |
-| `enabled` | LAN client enabled status (True or False) |
-| `mac` | MAC address of the LAN client device |
-| `user` | SSH username for the LAN client |
-| `pass` | SSH password for the LAN client |
-
-#### `database`
-
-| Key | Description |
-| --- | --- |
-| `name` | Database name used by the test suite |
-| `user` | Database username |
-| `pass` | Database password |
-| `ssid_table` | Database table containing SSID data |
-| `network_ssid_map` | Default Database values |
-
-#### `system`
-
-| Key | Description |
-| --- | --- |
-| `bridge_intf` | Bridge interface used in device-side checks |
-| `wifi_reset_interface` | Interface used for Wi-Fi reset traffic capture or validation |
-| `reset_json_file` | Path to the EasyMesh reset JSON file on the target system |
+See [Sanity_Tests_Documentation.md](Sanity_Tests_Documentation.md) file
 
 ### Notes
 
 - `conftest.py` currently connects to the controller and extenders with password-based Paramiko SSH sessions.
 - Extender and client SSH sessions are opened through the controller using Paramiko direct TCP/IP channels.
 - If `TEST_RUN_DIR` is set by `main.py`, reports and screenshots are created there; otherwise Pytest creates a fallback `TestRun_<timestamp>` directory automatically.
-
-## Test Setup Architecture
-
-For detailed diagrams of the physical test setup and scalability approach, see [Test Setup Architecture](EM_Test_User_Manual.md#test-setup-architecture) in the **EM_Test_User_Manual.md** document.

@@ -668,7 +668,7 @@ def verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, ste
 
 def verify_password_update_in_controller_and_agent(config, request, ssh, new_pass, step):
     #Add 35s delay to allow changes to apply on device before SSH verification
-    time.sleep(70)
+    time.sleep(35)
     #Verify Password update on device via SSH command execution
     print_step(f"Step {step}: Fetch updated Password from controller device")
     query = (

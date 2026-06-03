@@ -1,4 +1,14 @@
-# Centralized Packet Analyzer Test Case Specification
+# Packet Analyzer Test Case Specification
+
+## Table of Contents
+
+1. [Scope](#scope)
+2. [Test Suite Pre-requisites](#test-suite-pre-requisites)
+3. [Test Environment](#test-environment)
+4. [1) test_ssid_update_capture_analysis.py](#test_ssid_update_capture_analysispy)
+  - [TC-PA-01: test_capture_and_analyze_packets_with_ssid_update](#tc-pa-01)
+  - [Test Procedure and Expected Results](#test-procedure-and-expected-results)
+5. [Execution Notes](#execution-notes)
 
 ## Scope
 

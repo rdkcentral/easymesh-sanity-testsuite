@@ -3,28 +3,63 @@
 ## User Manual and Setup Guide
 
 **Version:** 1.2  
-**Date:** May 2026  
+**Date:** June 2026  
 **Purpose:** Sanity test suite for EasyMesh mesh networking systems
 
 ## Table of Contents
 
-1. Overview
-2. Setup Dependencies
-3. Installation Guide
-4. Configuration
-5. Test Cases Documentation
-6. Running the Test Suite
-7. Expected Outputs
-8. Troubleshooting
-9. Best Practices
-10. Support and Documentation
+1. [Overview](#overview)
+2. [Test Environment](#test-environment)
+3. [System Requirements](#system-requirements)
+4. [Hardware/Network Requirements](#hardwarenetwork-requirements)
+5. [Test Suite Execution Pre-requisites](#test-suite-execution-pre-requisites)
+6. [Steps To Execute The Sanity Test Suite](#steps-to-execute-the-sanity-test-suite)
+7. [Known failures encountered with the test suite execution](#known-failures-encountered-with-the-test-suite-execution)
+8. [Test suite Limitations](#test-suite-limitations)
+9. [Port Requirements](#port-requirements)
+10. [Test Setup Architecture](#test-setup-architecture)
+  - [Physical Test Setup](#physical-test-setup)
+  - [Scalability via config.yaml](#scalability-via-configyaml)
+11. [Installation Guide](#installation-guide)
+  - [Step 1: Install Python Dependencies](#step-1-install-python-dependencies)
+  - [Step 2: Install Playwright Browsers](#step-2-install-playwright-browsers)
+  - [Alternative: Install from Requirements File](#alternative-install-from-requirements-file)
+  - [Package Details](#package-details)
+12. [Configuration](#configuration)
+  - [Updating Testbed Details in config.yaml](#updating-testbed-details-in-configyaml)
+  - [Supported Keys and Validation Notes](#supported-keys-and-validation-notes)
+  - [Device Scaling](#device-scaling)
+13. [Running the main.py file](#running-the-mainpy-file)
+  - [Basic Execution](#basic-execution)
+  - [Run All Tests (Recommended with synchronized output directory)](#run-all-tests-recommended-with-synchronized-output-directory)
+  - [Run All Tests (Simple)](#run-all-tests-simple)
+  - [Run Specific Test File](#run-specific-test-file)
+  - [Run Specific Test Case](#run-specific-test-case)
+  - [Run Tests Matching a Pattern](#run-tests-matching-a-pattern)
+  - [Run Tests in Parallel](#run-tests-in-parallel)
+14. [Expected Outputs](#expected-outputs)
+  - [Console Output](#console-output)
+  - [Log Message Format](#log-message-format)
+  - [HTML Report](#html-report)
+    - [Report Contents](#report-contents)
+    - [Global Setup Fixture Output](#global-setup-fixture-output)
+    - [Report Features](#report-features)
+  - [Generated Files](#generated-files)
+15. [Troubleshooting](#troubleshooting)
+  - [Common Issues and Solutions](#common-issues-and-solutions)
+    - [SSH Connection Timeout](#ssh-connection-timeout)
+    - [Browser Launch Failure](#browser-launch-failure)
+    - [Database Query Failures](#database-query-failures)
+    - [Test Timeout](#test-timeout)
+    - [Playwright Timeout on Page Load](#playwright-timeout-on-page-load)
+16. [Best Practices](#best-practices)
+17. [Support and Documentation](#support-and-documentation)
 
 ## Overview
 
 This test suite provides automated sanity testing for EasyMesh R6 Pro Controller and related mesh networking functionality.
 
 The suite validates:
-
 - Service status and core functionality
 - Database configuration and synchronization
 - WiFi connectivity and SSID broadcasting
@@ -32,7 +67,9 @@ The suite validates:
 - LAN and WiFi client connectivity
 - Web UI (RDKB CLI) functionality
 
-### Test Environment
+For the detail test case documentation, please refer to the [Sanity_Tests_Documentation.md](Sanity_Tests_Documentation.md) file.
+
+## Test Environment
 
 | Component | Details |
 | --- | --- |
@@ -40,32 +77,44 @@ The suite validates:
 | Browser Automation | Chromium/Edge/Chrome via Playwright |
 | Connection Protocol | SSH (via Paramiko) for device communication |
 
-## Setup Dependencies
-
-### System Requirements
+## System Requirements
 
 - OS: Windows / Linux / macOS
 - Python Version: 3.8 or higher
 - Network: Access to controller, agent, and client devices via SSH
 - Browsers: Chrome/Chromium/Edge pre-installed (Playwright downloads drivers automatically)
 
-### Hardware/Network Requirements
+## Hardware/Network Requirements
 
 - Controller Device: 1 device accessible via network (configured in config.yaml)
 - Agent/Extender Devices: 2 devices accessible via network (configured in config.yaml)
-- WiFi Client: 1 device with Linux OS and WiFi capability (configured in config.yaml). This Wi-Fi client should be connected to the same LAN network as the BPI controller.
+- WiFi Client: 1 device with Linux OS and WiFi capability (configured in config.yaml). This Wi-Fi client should be connected to the same LAN network as the BPI controller and the client user should mandatorily have sudo access.
 - LAN Client: 1 device with Linux OS connected to controller via Ethernet (RPI4 or Linux PC supported; configured in config.yaml)
 - Database Access: Mesh database accessible from controller (configured in config.yaml)
 
-### Test suite Execution Pre-requisites
+## Test Suite Execution Pre-requisites
 
 - The sanity test suite execution requires test setup with minimum - 1 Controller, 2 Extenders, 1 LAN client and 1 Wi-Fi client. More extenders and clients can be configured in config.yaml.
 - Please ensure that the setup is in default state before triggering the full suite. Only with default state, the setup stage will pass.
 - Mesh backhaul formation must be ensured before running the test suite. If backhaul is not successfully formed, setup stage is expected to fail and no tests will be executed.
-- Please configure the test setup details as directed in the Configuration section of this document. Minimum 1 extender must be configured in config.yaml under extenders.
+- Please configure the test setup details as directed in the [Configuration](#configuration) section of this document. Minimum 1 extender must be configured in config.yaml under extenders.
 - Minimum of 2 extenders need to be onboarded successfully for running the topology related test test_network_topology.py.
 
-### Known failures encountered with the test suite execution
+## Steps To Execute The Sanity Test Suite
+
+- Clone the repository
+  ```bash
+  git clone git@github.com:rdkcentral/easymesh-sanity-testsuite.git
+  ```
+- Checkout to the latest main branch
+  ```bash
+  git checkout main
+  ```
+- Install all the required dependencies provided under the [Installation Guide](#installation-guide) section.
+- Navigate to the 'UI_Automation' folder
+- Execute the main.py file inside this folder by following the steps under the section [Running the main.py file](#running-the-mainpy-file).
+
+## Known failures encountered with the test suite execution
 
 | Sl.No | Failed test case name | Description | Bug ID |
 | --- | --- | --- | --- |
@@ -73,11 +122,11 @@ The suite validates:
 | 2 | test_em_functionality.py::test_rdkbcli_wifi_reset_with_custom_values | WiFi Reset with Custom Values Not Working via rdkbcli | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-418 |
 | 3 | test_em_functionality.py::test_rdkbcli_channel_change_preference | Intermittent Operating Class changes during Channel Switching via RDKBCLI | https://jira.rdkcentral.com/jira/browse/RDKBWIFI-424 |
 
-### Test suite Limitations
+## Test suite Limitations
 
 - Currently only Linux OS based Stations are supported. Framework lacks support for Windows and Android Stations.
 
-### Port Requirements
+## Port Requirements
 
 - SSH: Port 22 (controller, agent, clients)
 - HTTP: Port 8888 (RDKB CLI Web Interface)
@@ -307,6 +356,9 @@ system:
   bridge_intf: brlan0
   wifi_reset_interface: eth0_virt_peer
   reset_json_file: /usr/ccsp/EasyMesh/Reset.json
+
+browser_options:
+  headless_mode: <True or False>
 ```
 
 ### Supported Keys and Validation Notes
@@ -316,6 +368,7 @@ system:
 - Configure wifi_clients and lan_clients when running Wi-Fi and LAN client tests. Wi-Fi client entries must include enabled, ip, user, and pass fields, while LAN client entries must include enabled, mac, user, and pass fields.
 - database.name, database.user, database.pass, database.ssid_table and database.network_ssid_map are used by DB queries.
 - system.bridge_intf, system.wifi_reset_interface, and system.reset_json_file are used by topology and Wi-Fi reset flows.
+- browser_options.headless_mode is used by the browser fixture in conftest.py file
 
 ### Device Scaling
 
@@ -323,67 +376,7 @@ system:
 - For each LAN client, WiFi client, and extender, the `enabled` parameter must be specified as either `True` or `False`. At least one device must be enabled.
 - Tests automatically discover configured LAN clients, WiFi clients, and extenders from the YAML file and iterate dynamically over them.
 
-## Test Cases Documentation
-
-### 1. test_basic_sanity_tc.py
-
-**Purpose:** Validate core service functionality, configurations, and basic connectivity.
-
-| # | Test Name | Summary |
-| --- | --- | --- |
-| 1 | test_onewifi_service_status | Verify OneWiFi service is active on both controller and agent devices |
-| 2 | test_verify_core_files_presence | Check for core dump files to detect service crashes |
-| 3 | test_ieee1905_em_ctrl_service_status | Verify IEEE1905 EM Control service status on controller |
-| 4 | test_em_ctrl_service_status | Verify EM Control service status on controller |
-| 5 | test_ieee1905_em_agent_service_status | Verify IEEE1905 EM Agent service status on agent device |
-| 6 | test_em_agent_service_status | Verify EM Agent service status on agent device |
-| 7 | test_db_values_match_default_json | Validate database SSID entries match Reset.json default configuration |
-| 8 | test_log_files_presence | Verify presence of EM and IEEE1905 log files on devices (parametrized) |
-| 9 | test_all_configured_vaps_are_up | Ensure all configured Virtual Access Points are operational |
-| 10 | test_broadcast_default_SSID | Verify default fronthaul and backhaul SSIDs are being broadcast |
-
-### 2. test_em_functionality.py
-
-**Purpose:** Test EasyMesh functionality including SSID/password updates, channel changes, and WiFi reset.
-
-| # | Test Name | Summary |
-| --- | --- | --- |
-| 1 | test_rdkbcli_update_verify_ssid | Update fronthaul SSID from RDKB CLI and verify on controller and agent |
-| 2 | test_rdkbcli_update_verify_password | Update fronthaul password from RDKB CLI and verify in UI and DB |
-| 3 | test_rdkbcli_verify_channel_change | Channel change test is currently skipped due to unstable dropdown and operating class values |
-| 4 | test_rdkbcli_wifi_reset_with_default_values | Perform WiFi reset and verify revert to default SSID/password |
-| 5 | test_rdkbcli_wifi_reset_with_custom_values | Perform WiFi reset with custom SSID/password values |
-
-### 3. test_network_topology.py
-
-**Purpose:** Validate network topology structure and UI representation.
-
-| # | Test Name | Summary |
-| --- | --- | --- |
-| 1 | test_validate_ui_topology | Verify UI topology graph matches backend TR-181 data, validate SSID and BSSID mapping |
-| 2 | test_determine_topology_type_from_brctl_command | Determine if mesh topology is Star or Daisy-chain based on backhaul |
-
-### 4. test_wifi_client_connectivity.py
-
-**Purpose:** Test WiFi client connectivity to the mesh network.
-
-| # | Test Name | Summary |
-| --- | --- | --- |
-| 1 | test_fronthaul_wifi_client_connectivity | Verify WiFi client can connect to fronthaul SSID, obtain IP, and access internet |
-| 2 | test_fronthaul_wifi_client_connectivity_with_updated_ssid | Verify client connectivity after SSID update via RDKB CLI |
-
-### 5. test_lan_client_connectivity.py
-
-**Purpose:** Test LAN client connectivity and network access.
-
-| # | Test Name | Summary |
-| --- | --- | --- |
-| 1 | test_lan_client_connectivity | Verify LAN client obtains IP and validates internet connectivity |
-
-## Running the Test Suite
-
-### Method 1: Using main.py (Recommended)
-
+## Running the main.py file
 The main.py file provides a convenient way to execute tests with predefined configurations.
 
 #### Basic Execution
@@ -480,7 +473,7 @@ A comprehensive HTML report is generated at the path passed to --html.
 - **Test Summary:** Pass/Fail/Skip statistics with execution timing
 - **Execution Timeline:** Duration for each test with start/end times
 - **Detailed Logs:** Console output for each test including verification steps
-- **Global Setup Section:** Device connection, VAP verification, and mesh formation checks
+- **[Global Setup Fixture Output](#global-setup-fixture-output):** Device connection, VAP verification, and mesh formation checks
 - **Screenshots:** UI screenshots for failed tests (stored in TestRun_YYYYMMDD_HHMMSS/Screenshots/)
 - **Error Messages:** Full error tracebacks with context information
 
@@ -502,7 +495,7 @@ If any verification step fails during global setup, the entire test suite execut
 - Color-coded test results (Green=Pass, Red=Fail, Orange=Skip)
 - Sortable test results table with test names and execution times
 - Expandable log details for each test section
-- Global setup section at the beginning with all pre-execution verification logs
+- [Global Setup Fixture Output](#global-setup-fixture-output) at the beginning with all pre-execution verification logs
 - Embedded screenshots for debugging UI-related failures
 - Device connectivity and network topology verification logs
 
@@ -597,6 +590,6 @@ Note: Screenshots are stored under TEST_RUN_DIR/Screenshots when TEST_RUN_DIR is
 - Verify device connectivity with SSH commands.
 - Review config.yaml for testbed configuration options.
 
-**Last Updated:** May 2026  
+**Last Updated:** June 2026
 **Version:** 1.2  
 **Maintained by:** TDKB Test Automation Team
