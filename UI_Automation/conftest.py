@@ -31,6 +31,13 @@ import utils
 import re
 import io
 import contextlib
+import importlib
+
+try:
+    # pytest-html 3.x expects py.xml html nodes in hook outputs.
+    py_html = importlib.import_module("py.xml").html
+except Exception:
+    py_html = None
 
 BASE_DIR = Path(__file__).resolve().parent
 screenshots_path = None
@@ -42,6 +49,34 @@ def record_global_setup_log(message, print_to_stdout=True):
     if print_to_stdout:
         print(message)
     GLOBAL_SETUP_LOGS.append(message)
+
+def _decode_escape_sequences(text):
+    """Normalize both literal and real line/tab escapes without breaking Windows paths."""
+    if not isinstance(text, str):
+        text = str(text)
+
+    # First normalize real CRLF/CR control characters from command output.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Then decode literal escape sequences that may appear in stringified logs.
+    return (
+        text
+        .replace("\\r\\n", "\n")
+        .replace("\\n", "\n")
+        .replace("\\r", "\n")
+        .replace("\\t", "\t")
+    )
+
+
+def _normalize_report_text(text, passes=3):
+    """Normalize ANSI + escaped control sequences, handling double-escaped content."""
+    normalized = text if isinstance(text, str) else str(text)
+    for _ in range(passes):
+        updated = _decode_escape_sequences(normalized)
+        if updated == normalized:
+            break
+        normalized = updated
+    return _strip_ansi(normalized)
 
 global intf
 intf = "eth0_virt_peer"
@@ -461,15 +496,27 @@ def pytest_html_results_summary(prefix, summary, postfix):
     if not GLOBAL_SETUP_LOGS:
         return
 
-    formatted_logs = "<br>".join(escape(line) for line in GLOBAL_SETUP_LOGS)
-    summary.extend([
-        "<h2>Global Setup</h2>",
-        (
-            "<div style='white-space: pre-wrap; font-family: monospace;'>"
-            f"{formatted_logs}"
+    formatted_logs = "\n".join(_normalize_report_text(line) for line in GLOBAL_SETUP_LOGS)
+
+    if py_html is not None:
+        summary.extend(
+            [
+                py_html.h2("Global Setup"),
+                py_html.div(
+                    formatted_logs,
+                    style="white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;",
+                ),
+            ]
+        )
+    else:
+        # Fallback for environments where py.xml is unavailable.
+        html_content = (
+            "<h2>Global Setup</h2>"
+            "<div style='white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;'>"
+            f"{escape(formatted_logs)}"
             "</div>"
-        ),
-    ])
+        )
+        summary.append(html_content)
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
@@ -510,27 +557,70 @@ def pytest_html_results_table_html(report, data):
     # Add failure traceback for call phase
     if report.failed and report.when == "call":
         if hasattr(report, "longrepr"):
-            new_data.append(f"<div>{escape(str(report.longrepr))}</div>")
+            longrepr_text = _normalize_report_text(report.longrepr)
+            if py_html is not None:
+                new_data.append(
+                    py_html.div(
+                        longrepr_text,
+                        style="white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;",
+                    )
+                )
+            else:
+                longrepr = escape(longrepr_text)
+                new_data.append(
+                    "<div style='white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;'>"
+                    f"{longrepr}"
+                    "</div>"
+                )
 
     # Add formatted logs from captured stdout
     stdout = getattr(report, "capstdout", "") or ""
     if stdout.strip():
-        lines = _strip_ansi(stdout).splitlines()
-        formatted_lines = []
-        for line in lines:
-            escaped_line = escape(line)
-            if "PASS:" in line:
-                formatted_lines.append(
-                    f'<span style="color:green; font-weight:bold;">{escaped_line}</span>'
-                )
-            elif "FAIL:" in line:
-                formatted_lines.append(
-                    f'<span style="color:red; font-weight:bold;">{escaped_line}</span>'
-                )
-            else:
-                formatted_lines.append(escaped_line)
-        html = "<br>".join(formatted_lines)
-        new_data.append(f"<div>{html}</div>")
+        lines = _normalize_report_text(stdout).splitlines()
+        if py_html is not None:
+            container = py_html.div(
+                style="white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;"
+            )
+            for idx, line in enumerate(lines):
+                # Some tests print HTML span tags; remove them so we control coloring consistently.
+                plain_line = re.sub(r"</?span[^>]*>", "", line, flags=re.IGNORECASE)
+                stripped = plain_line.lstrip()
+                if stripped.startswith("PASS:"):
+                    style = "color:green; font-weight:bold;"
+                elif stripped.startswith("FAIL:"):
+                    style = "color:red; font-weight:bold;"
+                else:
+                    style = "color:black;"
+
+                container.append(py_html.span(plain_line, style=style))
+                if idx < len(lines) - 1:
+                    container.append(py_html.br())
+
+            new_data.append(container)
+        else:
+            formatted_lines = []
+            for line in lines:
+                plain_line = re.sub(r"</?span[^>]*>", "", line, flags=re.IGNORECASE)
+                escaped_line = escape(plain_line)
+                stripped = plain_line.lstrip()
+                if stripped.startswith("PASS:"):
+                    formatted_lines.append(
+                        f'<span style="color:green; font-weight:bold;">{escaped_line}</span>'
+                    )
+                elif stripped.startswith("FAIL:"):
+                    formatted_lines.append(
+                        f'<span style="color:red; font-weight:bold;">{escaped_line}</span>'
+                    )
+                else:
+                    formatted_lines.append(
+                        f'<span style="color:black;">{escaped_line}</span>'
+                    )
+            html = "\n".join(formatted_lines)
+            new_data.append(
+                "<div style='white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;'>"
+                f"{html}"
+                "</div>"
+            )
 
     if new_data:
         data.clear()
