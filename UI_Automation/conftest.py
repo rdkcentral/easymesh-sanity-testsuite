@@ -69,14 +69,25 @@ def _decode_escape_sequences(text):
 
 
 def _normalize_report_text(text, passes=3):
-    """Normalize ANSI + escaped control sequences, handling double-escaped content."""
     normalized = text if isinstance(text, str) else str(text)
     for _ in range(passes):
         updated = _decode_escape_sequences(normalized)
         if updated == normalized:
             break
         normalized = updated
-    return _strip_ansi(normalized)
+    normalized = _strip_ansi(normalized)
+    replacements = {
+        "\u2011": "-",  # non-breaking hyphen
+        "\u2013": "-",  # en dash
+        "\u2014": "-",  # em dash
+        "\u2018": "'",  # left single quote
+        "\u2019": "'",  # right single quote
+        "\u201c": '"',  # left double quote
+        "\u201d": '"',  # right double quote
+    }
+    for old, new in replacements.items():
+        normalized = normalized.replace(old, new)
+    return normalized
 
 global intf
 intf = "eth0_virt_peer"
@@ -272,7 +283,121 @@ class SSHManager:
     def __init__(self, config):
         self.config = config
         self.controller = None
-        self.extenders = {}  # <-- multiple agents
+        self.extenders = {}
+
+    # Helper Functions
+    def _is_alive(self, client):
+        try:
+            transport = client.get_transport()
+            return transport is not None and transport.is_active()
+        except Exception:
+            return False
+
+    def reconnect_controller(self):
+        ctrl = self.config["controller"]
+        try:
+            if self.controller:
+                self.controller.close()
+        except Exception:
+            pass
+        self.controller = paramiko.SSHClient()
+        self.controller.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.controller.connect(
+            hostname=ctrl["ip"],
+            username=ctrl["user"],
+            password="None",
+            timeout=20,
+            banner_timeout=60,
+            auth_timeout=30,
+            look_for_keys=False,
+            allow_agent=False,
+        )
+        transport = self.controller.get_transport()
+        if transport:
+            transport.set_keepalive(30)
+
+    def clear_extender_sessions(self):
+        """
+        Clear all extender SSH sessions.
+        Required after controller reboot because
+        all extender tunnels become invalid.
+        """
+        for client in self.extenders.values():
+            try:
+                client.close()
+            except Exception:
+                pass
+        self.extenders.clear()
+
+    def wait_for_controller(self, timeout=600, interval=15):
+        # Wait until controller is reachable after reboot.
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                self.reconnect_controller()
+                stdin, stdout, stderr = self.controller.exec_command("uptime")
+                stdout.read()
+                print("[SSH INFO] Controller is reachable")
+                return True
+            except Exception as e:
+                print(f"[SSH INFO] Waiting for controller to come back: {e}")
+                time.sleep(interval)
+        return False
+
+    def reconnect_extender(self, name):
+        # Reconnect to extender through controller SSH tunnel.
+        # Ensure controller connection is alive first
+        if not self._is_alive(self.controller):
+            print("[SSH INFO] Controller session stale. Reconnecting...")
+            self.reconnect_controller()
+        ext = self.enabled_extenders[name]
+        try:
+            if name in self.extenders:
+                self.extenders[name].close()
+        except Exception:
+            pass
+        transport = self.controller.get_transport()
+        if not transport or not transport.is_active():
+            raise RuntimeError("Controller transport is not active")
+        channel = transport.open_channel(
+            "direct-tcpip",
+            (ext["ip"], 22),
+            ("127.0.0.1", 0),
+        )
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(
+            hostname=ext["ip"],
+            username=ext["user"],
+            password="None",
+            sock=channel,
+            timeout=20,
+            banner_timeout=60,
+            auth_timeout=30,
+            look_for_keys=False,
+            allow_agent=False,
+        )
+        transport = client.get_transport()
+        if transport:
+            transport.set_keepalive(30)
+        self.extenders[name] = client
+
+    def wait_for_extender(self, name, timeout=900, interval=30,):
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                # Ensure controller is alive
+                if not self._is_alive(self.controller):
+                    self.reconnect_controller()
+                self.reconnect_extender(name)
+                stdin, stdout, stderr = (self.extenders[name].exec_command("uptime"))
+                stdout.read()
+                print(f"[SSH INFO] {name} is reachable")
+                return True
+            except Exception as e:
+                print(f"[SSH INFO] Waiting for {name}: {e}")
+                time.sleep(interval)
+        return False
 
     # ---------- Connect ----------
     def connect(self):
@@ -290,6 +415,8 @@ class SSHManager:
         # ---- LAN Clients ----
         self.enabled_lan_clients = get_enabled_devices(self.config, "lan_clients")
 
+        # ---------------- Controller ----------------
+
         self.controller = paramiko.SSHClient()
         self.controller.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -304,9 +431,16 @@ class SSHManager:
             allow_agent=False,
         )
 
-        # ---- Extenders (via tunnel) ----
         transport = self.controller.get_transport()
+        if transport:
+            transport.set_keepalive(30)
+
+        # ---------------- Extenders ----------------
+
+        transport = self.controller.get_transport()
+
         for name, ext in self.enabled_extenders.items():
+
             channel = transport.open_channel(
                 "direct-tcpip",
                 (ext["ip"], 22),
@@ -314,7 +448,7 @@ class SSHManager:
             )
 
             client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            client.set_missing_host_key_policy( paramiko.AutoAddPolicy())
 
             client.connect(
                 hostname=ext["ip"],
@@ -327,10 +461,19 @@ class SSHManager:
                 allow_agent=False,
             )
 
-            self.extenders[name] = client  # store by name
+            ext_transport = client.get_transport()
+            if ext_transport:
+                ext_transport.set_keepalive(30)
+
+            self.extenders[name] = client
 
     # ---------- Execute ----------
     def _execute(self, client, command, sudo_password=None):
+
+        if "reboot" in command or "shutdown" in command:
+            client.exec_command(command)
+            return "reboot triggered"
+
         stdin, stdout, stderr = client.exec_command(command, get_pty=True)
 
         if sudo_password:
@@ -343,22 +486,38 @@ class SSHManager:
         if sudo_password:
             out = out.replace(sudo_password, "")
 
-        if "Error" in err or "failed" in err.lower():
-            pytest.fail(f"Fail: Error executing command: {err}")
+        if err and ("error" in err.lower() or "failed" in err.lower()):
+            pytest.fail(f"Error executing command:\n{err}")
 
         return out.strip()
 
     # ---------- Run ----------
     def run(self, target, command, sudo_password=None):
         if target == "controller":
+            if not self._is_alive(self.controller):
+                print("[SSH INFO] Controller SSH session stale. Reconnecting...")
+                self.reconnect_controller()
             client = self.controller
         else:
             client = self.extenders.get(target)
-
-        if not client:
-            pytest.fail(f"Unknown device: {target}")
-
-        return self._execute(client, command, sudo_password)
+            if not client:
+                print(f"[SSH INFO] No SSH session found for {target}. Reconnecting...")
+                self.reconnect_extender(target)
+                client = self.extenders[target]
+            elif not self._is_alive(client):
+                print(f"[SSH INFO] {target} SSH session stale. Reconnecting...")
+                self.reconnect_extender(target)
+                client = self.extenders[target]
+        # Execute command
+        try:
+            return self._execute(client, command, sudo_password)
+        except (
+            ConnectionResetError,
+            EOFError,
+            paramiko.SSHException,
+            OSError,
+        ) as e:
+            print(f"[SSH INFO] Connection lost while executing '{command}' on {target}: {e}")
 
     # ---------- Dynamic Client Connection ----------
     def connect_client(self, client_ip, client_user, client_password):

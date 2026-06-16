@@ -187,135 +187,31 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
     print_step("Entering Test3: test_rdkbcli_channel_change_preference")
 
 # Documentation: [TC-EM-04](Centralized_Test_Cases.md#tc-em-04-test_rdkbcli_wifi_reset_with_default_values)
-def test_rdkbcli_wifi_reset_with_default_values(config,page,request,ssh,paths):
+def test_rdkbcli_wifi_reset_with_default_values(config, page, request, ssh, paths):
     print_step("Entering Test4: test_rdkbcli_wifi_reset_with_default_values")
-    # Flag to verify WiFi reset values
-    wifi_reset = True
-    #Navigate to Rdkbcli page
+    # Navigate to Rdkbcli page
     playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
-    #Navigate to WirelesS Settings page
-    playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
-    # Select the correct AL MAC Address
+    # Navigate to Wireless Settings page
+    playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 2, paths)
+    # Retrieve the Wi-Fi reset interface mac address from controller.
     iface_name = config["system"]["wifi_reset_interface"]
-    print_step(f"Step 3: Choose the correct AL MAC Address ({iface_name}) for reset operation.")
-    page.wait_for_selector("#almac-select")
-
-    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address("controller", iface_name, ssh)} ({iface_name})"
-    if al_mac_address_wifi_reset:
-        print_success("AL MAC address retrieved successfully.")
+    print_step(f"Step 3: Retrieve the {iface_name} interface MAC from the controller.")
+    al_mac_address = utils.get_interface_mac_address("controller", iface_name, ssh)
+    if al_mac_address:
+        print_success("AL MAC address retrieved successfully from controller device.")
     else:
-        pytest.fail("Failed to retrieve AL MAC address.")
-    result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
-    if not result:
-        wifi_reset = False
-        print_error(request, f"Failed to select the {config["system"]["wifi_reset_interface"]}!")
-    page.on("dialog", utils.wifi_reset_dialog_handler)
-    print_step("Step 4: Click the Wi-Fi Reset button and confirm the Wi-Fi reset confirmation dialog.")
-    page.click("#reset-btn")
-    #Add 10s delay to allow changes to apply on device
-    page.wait_for_timeout(10000)
-    print_step("Step 5: Verify the OneWifiMesh DB values correspond to the expected default values for each haul type.")
-    ssid_map = config["database"]["network_ssid_map"]
-    for haul_id, cfg in ssid_map.items():
-        default_ssid = cfg["default_ssid"]
-        default_pass = cfg["default_pass"]
-        print(f"Haul Type: {haul_id} \n Default SSID: {default_ssid} Default Password: {default_pass}")
-        # SQL query to retrieve SSID and PassPhrase for each haul type from OneWifiMesh DB.
-        query = f"SELECT SSID, PassPhrase FROM {config["database"]["ssid_table"]} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
-        query_out = utils.get_db_values(config, ssh, query)
-        db_output = query_out.strip().split()
-        if len(db_output) < 2:
-            wifi_reset = False
-            print_error(request, f"Invalid DB response (expected 2 values): {query_out}")
-            continue
-        db_ssid, db_pass = db_output[0], db_output[1]
-        #Verify whether the DB value matches the default values.
-        if db_ssid == default_ssid and db_pass == default_pass:
-            print_success(f"{haul_id} DB Data - SSID: {db_ssid} Password: {db_pass}")
-            print_success(f"Wi-Fi reset completed successfully for the haul type {haul_id}; the default SSID and password were restored correctly.")
-        else:
-            wifi_reset = False
-            if db_ssid != default_ssid:
-                print_error(request, f"{haul_id} : SSID mismatch after Wi-Fi reset. Expected: {default_ssid}, Actual: {db_ssid}")
-            if db_pass != default_pass:
-                print_error(request, f"{haul_id} : Password mismatch after Wi-Fi reset. Expected: {default_pass}, Actual: {db_pass}")
-    if wifi_reset:
-        print_success("Completed verification of OneWifiMesh DB values with expected default values for each haul type")
+        pytest.fail("Failed to retrieve AL MAC address from controller device.")
+    # Select the Wi-Fi reset interface from dropdown in UI.
+    playwright_utils.select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step=4)
+    # Confirm the pop-up to trigger the Wi‑Fi reset.
+    playwright_utils.perform_wifi_reset(page, step=5)
+    # Reboot the device after Wi-Fi reset and wait for the device to come back.
+    utils.reboot_device_after_wifi_reset(ssh, request, step=6)
+    # Verify that the OneWifiMesh DB values match the expected default values.
+    utils.verify_wifi_db_values(config, ssh, request, expected_type="default",step=7)
+    # Verify SSID values for each interface using iw dev against the expected default values.
+    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="default", step=8)
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
-    print_step("Step 6: Verify any core files generated in the devices after WiFi reset.")
+    print_step("Step 9: Verify any core files generated in the devices after WiFi reset.")
     utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test4: test_rdkbcli_wifi_reset_with_default_values")
-
-# Documentation: [TC-EM-05](Centralized_Test_Cases.md#tc-em-05-test_rdkbcli_wifi_reset_with_custom_values)
-def test_rdkbcli_wifi_reset_with_custom_values(config,page,request,ssh,paths):
-    print_step("Entering Test5: test_rdkbcli_wifi_reset_with_custom_values")
-    # Flag to verify WiFi reset values
-    wifi_reset = True
-    #Navigate to Rdkbcli page
-    playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
-    #Navigate to WirelesS Settings page
-    playwright_utils.navigate_to_required_rdkbcli_page(page, request, 'System Settings', 2, paths)
-    # Select the correct AL MAC Address
-    iface_name = config["system"]["wifi_reset_interface"]
-    print_step(f"Step 3: Choose the correct AL MAC Address ({iface_name}) for reset operation.")
-    page.wait_for_selector("#almac-select")
-    al_mac_address_wifi_reset = f"{utils.get_interface_mac_address("controller", iface_name, ssh)} ({iface_name})"
-    if al_mac_address_wifi_reset:
-        print_success("AL MAC address retrieved successfully.")
-    else:
-        pytest.fail("Failed to retrieve AL MAC address.")
-    result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
-    if not result:
-        wifi_reset = False
-        print_error(request, f"Failed to select the {config["system"]["wifi_reset_interface"]}!")
-    #Fill the custom SSID and password values to be configured after WiFi reset.
-    print_step("Step 4: Set the custom SSID and Password to be applied after the Wi-Fi reset for each haul type.")
-    ssid_map = config["database"]["network_ssid_map"]
-    for haul_id, cfg in ssid_map.items():
-        custom_ssid = cfg["custom_ssid"]
-        custom_pass = cfg["custom_pass"]
-        print(f"Haul Type: {haul_id} \n Custom SSID: {custom_ssid} Custom Password: {custom_pass}")
-        checkbox = page.locator(f'#haul-{haul_id}')
-        checkbox.check()
-        page.fill(f'#ssid-{haul_id}', custom_ssid)
-        page.fill(f'#password-{haul_id}', custom_pass)
-    print_success("Custom values were successfully filled on the RDKBCLI Wi-Fi Reset page")    
-    # Screenshot (avoid full_page on docs sites)
-    print_step("Step 5: Take screenshot of Custom SSID and passphrase input value in RDKB CLI page before reset")
-    playwright_utils.take_screenshot(page, request, paths["screenshots"] / "rdkbcli_wifi_reset_custom_values.png")    
-    #Handler to manage confirmation dialogs
-    page.on("dialog", utils.wifi_reset_dialog_handler)
-    print_step("Step 6: Click the Wi-Fi Reset button and confirm the Wi-Fi reset confirmation dialog.")
-    page.click("#reset-btn")
-    #Add 10s delay to allow changes to apply on device
-    page.wait_for_timeout(10000)
-    print_step("Step 7: Verify the OneWifiMesh DB values correspond to the expected default values for each haul type.")
-    ssid_map = config["database"]["network_ssid_map"]
-    for haul_id, ssid_cfg in ssid_map.items():
-        custom_ssid = ssid_cfg["custom_ssid"]
-        custom_pass = ssid_cfg["custom_pass"]
-        # SQL query to retrieve SSID and PassPhrase for each haul type from OneWifiMesh DB.
-        query = f"SELECT SSID, PassPhrase FROM {config["database"]["ssid_table"]} WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
-        query_out = utils.get_db_values(config, ssh, query)
-        db_output = query_out.strip().split()
-        if len(db_output) < 2:
-            wifi_reset = False
-            print_error(request, f"Invalid DB response (expected 2 values): {query_out}")
-            continue
-        db_ssid, db_pass = db_output[0], db_output[1]
-        #Verify whether the DB value matches the default values.
-        if db_ssid == custom_ssid and db_pass == custom_pass:
-            print_success(f"{haul_id} DB Data - SSID: {db_ssid} DB Password: {db_pass}")
-            print_success(f"Wi-Fi reset completed successfully, custom SSID and Password were applied correctly.")
-        else:
-            wifi_reset = False
-            if db_ssid != custom_ssid:
-                print_error(request, f"{haul_id} : SSID mismatch after Wi-Fi reset. Expected: {custom_ssid}, Actual: {db_ssid}")
-            if db_pass != custom_pass:
-                print_error(request, f"{haul_id} : Password mismatch after Wi-Fi reset. Expected: {custom_pass}, Actual: {db_pass}")
-    if wifi_reset:
-        print_success("Completed verification of OneWifiMesh DB values with expected default values for each haul type")
-    #Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
-    print_step("Step 8: Verify any core files generated in the devices after WiFi reset.")
-    utils.verify_core_dump_generated(request, ssh)
-    print_step("Exiting Test5: test_rdkbcli_wifi_reset_with_custom_values")

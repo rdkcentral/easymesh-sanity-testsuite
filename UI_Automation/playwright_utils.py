@@ -104,3 +104,48 @@ def fetch_and_verify_home_network_input(page, request, field_name, locator_id, e
     except Exception as e:
         take_screenshot(page, request, paths["screenshots"] / f"{field_name}_fetch_error.png")
         pytest.fail(f"Error while verifying {field_name}: {e}")
+
+def select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step):
+    # Select the correct AL MAC Address
+    print_step(f"Step {step}: Choose the correct AL MAC Address ({iface_name}) for reset operation from RDKB-CLI.")
+    page.wait_for_selector("#almac-select")
+    al_mac_address_wifi_reset = f"{al_mac_address} ({iface_name})"
+    result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
+    if not result:
+        pytest.fail(f"Failed to select the {iface_name}!")
+    print_success(f"{iface_name} selected successfully for Wi-Fi reset operation.")
+
+def configure_custom_wifi_values(page, ssid_map, step):
+    # Fill the custom SSID and password values to be configured after WiFi reset.
+    print_step(f"Step {step}: Set the custom SSID and Password to be applied after the Wi-Fi reset for each haul type.")
+    for haul_id, cfg in ssid_map.items():
+        custom_ssid = cfg["custom_ssid"]
+        custom_pass = cfg["custom_pass"]
+        print(f"Haul Type: {haul_id} \n Custom SSID: {custom_ssid} Custom Password: {custom_pass}")
+        checkbox = page.locator(f"#haul-{haul_id}")
+        checkbox.check()
+        page.fill(f"#ssid-{haul_id}", custom_ssid)
+        page.fill(f"#password-{haul_id}", custom_pass)
+    print_success("Custom values were successfully filled on the RDKBCLI Wi-Fi Reset page")
+
+def wifi_reset_dialog_handler(dialog):
+    #Handle the popup by capturing its message and confirming OK based on the message.
+    msg = dialog.message.lower()
+    if "resetting the wi-fi configuration" in msg:
+        print(f"Dialog Message:\n{msg}")
+        dialog.accept()
+        time.sleep(5)
+    elif "wi-fi configuration reset successfully" in msg:
+        print_success(f"Dialog Message:\n{msg}")
+        dialog.accept()
+    else:
+        print(f"Dialog Message: {msg}")
+        pytest.fail("Error in handling the Wi-Fi reset confirmation dialog.")
+
+def perform_wifi_reset(page, step):
+    # Handler to manage confirmation dialogs
+    page.on("dialog", wifi_reset_dialog_handler)
+    print_step(f"Step {step}: Click the Wi-Fi Reset button and confirm the Wi-Fi reset confirmation dialog.")
+    page.click("#reset-btn")
+    # Add 10s delay to allow changes to apply on device
+    page.wait_for_timeout(10000)
