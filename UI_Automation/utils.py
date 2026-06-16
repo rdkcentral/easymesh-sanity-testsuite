@@ -106,20 +106,6 @@ def _parse_ssid_passphrase_row(row):
         f"Expected two columns but got: '{row}'"
     )
 
-def wifi_reset_dialog_handler(dialog):
-    #Handle the popup by capturing its message and confirming OK based on the message.
-    msg = dialog.message.lower()
-    if "resetting the wi-fi configuration" in msg:
-        print(f"Dialog Message:\n{msg}")
-        dialog.accept()
-        time.sleep(5)
-    elif "wi-fi configuration reset successfully" in msg:
-        print_success(f"Dialog Message:\n{msg}")
-        dialog.accept()
-    else:
-        print(f"Dialog Message: {msg}")
-        pytest.fail("Error in handling the Wi-Fi reset confirmation dialog.")
-
 def get_reset_json_data(config, ssh):
     #Read Reset.json from the controller and return parsed data.
     reset_json_file = config["system"]["reset_json_file"]
@@ -789,3 +775,139 @@ def validate_fronthaul_client_connectivity(config, request, ssh, step):
             if not visible_bssids:
                 continue
             connect_client_to_target_bssid(client_name, wifi_client, fronthaul_ssid, fronthaul_password, bssids, visible_bssids, request, ssh, device, step+3)
+
+def verify_iw_dev_interface_value(config, ssh, request, expected_type, step):
+    # Verify SSID values for each interface using iw dev against expected configuration
+    print_step(f"Step {step}: Verify that ALL interface SSIDs match expected {expected_type} configuration via iw dev.")
+    verification_failed = False
+    ssid_map = config["database"]["network_ssid_map"]
+    expected_map = {
+        "Fronthaul": ssid_map["Fronthaul"][f"{expected_type}_ssid"],
+        "Backhaul": ssid_map["Backhaul"][f"{expected_type}_ssid"],
+        "IoT": ssid_map["IoT"][f"{expected_type}_ssid"]
+    }
+    # Expected mandatory interfaces
+    expected_interfaces = {
+        "mld0": "Fronthaul"
+    }
+    for i in range(3):
+        expected_interfaces[f"wifi{i}.1"] = "Backhaul"
+        expected_interfaces[f"wifi{i}.2"] = "IoT"
+    for device in ssh.device_list:
+        try:
+            output = run_command_fetch_output_from_device("iw dev", device, ssh)
+        except Exception as e:
+            verification_failed = True
+            print_error(request, f"{device}: Failed to retrieve interface details. Error: {str(e)}")
+            continue
+        current_iface = None
+        iface_ssid_map = {}
+        # Parse iw dev output
+        for line in output.splitlines():
+            line = line.strip()
+            if line.startswith("Interface"):
+                current_iface = line.split()[1]
+            elif line.startswith("ssid") and current_iface:
+                ssid = line.split("ssid", 1)[1].strip()
+                iface_ssid_map[current_iface] = ssid
+        device_failed = False
+        # Check missing interfaces first
+        for expected_iface in expected_interfaces:
+            if expected_iface not in iface_ssid_map:
+                device_failed = True
+                verification_failed = True
+                print_error(request, f"{device}: Missing interface {expected_iface}")
+        # Validate SSID values
+        for iface, expected_band in expected_interfaces.items():
+            if iface not in iface_ssid_map:
+                continue
+            ssid = iface_ssid_map[iface]
+            expected_ssid = expected_map[expected_band]
+            if ssid == expected_ssid:
+                print_success(f"{device} - {expected_band}: SSID '{ssid}' is correctly configured on {iface} after Wi-Fi Reset.")
+            else:
+                device_failed = True
+                verification_failed = True
+                print_error(request, f"{device} - {expected_band}: SSID mismatch on {iface}. Expected: {expected_ssid}, Actual: {ssid}")
+        if device_failed:
+            print_error(request, f"{device}: Interface SSID validation failed.\nCommand Output:\n{output}")
+    if verification_failed:
+        pytest.fail(f"Interface SSID values do not match expected {expected_type} configuration.")
+    print_success(f"Completed verification of interface SSID values via iw dev for {expected_type} configuration.")
+
+def verify_wifi_db_values(config, ssh, request, expected_type, step):
+    # Verify the OneWifiMesh DB values correspond to the expected values for each haul type.
+    print_step(f"Step {step}: Verify the OneWifiMesh DB values correspond to the expected {expected_type} values for each haul type.")
+    verification_failed = False
+    ssid_map = config["database"]["network_ssid_map"]
+    for haul_id, cfg in ssid_map.items():
+        expected_ssid = cfg[f"{expected_type}_ssid"]
+        expected_pass = cfg[f"{expected_type}_pass"]
+        print(
+            f"Haul Type: {haul_id}\n"
+            f"Expected SSID: {expected_ssid}\n"
+            f"Expected Password: {expected_pass}"
+        )
+        query = (
+            f"SELECT SSID, PassPhrase FROM {config['database']['ssid_table']} "
+            f"WHERE ID LIKE '%{haul_id}%OneWifiMesh%';"
+        )
+        query_out = get_db_values(config, ssh, query)
+        db_output = query_out.strip().split()
+        if len(db_output) < 2:
+            verification_failed = True
+            print_error(request, f"Invalid DB response (expected 2 values): {query_out}")
+            continue
+        db_ssid, db_pass = db_output[0], db_output[1]
+        if db_ssid == expected_ssid and db_pass == expected_pass:
+            print_success(f"{haul_id} DB Data - SSID: {db_ssid} Password: {db_pass}")
+            if expected_type == "default":
+                print_success(f"Wi-Fi reset completed successfully for haul type {haul_id}; default SSID and password restored correctly.")
+            else:
+                print_success("Wi-Fi reset completed successfully; custom SSID and password applied correctly.")
+        else:
+            verification_failed = True
+            if db_ssid != expected_ssid:
+                print_error(request, f"{haul_id}: SSID mismatch after Wi-Fi reset. Expected: {expected_ssid}, Actual: {db_ssid}")
+            if db_pass != expected_pass:
+                print_error(request, f"{haul_id}: Password mismatch after Wi-Fi reset. Expected: {expected_pass}, Actual: {db_pass}")
+    if verification_failed:
+        pytest.fail(f"OneWifiMesh DB values do not match expected {expected_type} values.")
+    print_success(f"Completed verification of OneWifiMesh DB values with expected {expected_type} values for each haul type.")
+
+def reboot_device_after_wifi_reset(ssh, request, step):
+    # Reboot all connected devices (extenders first, then controller)
+    print_step(f"Step {step}: Reboot all connected devices after Wi-Fi reset and verify reachability.")
+    # Reboot all the connected extenders
+    print_step(f"Step {step}.1: Initiating reboot on all extenders.")
+    for extender in ssh.enabled_extenders:
+        try:
+            print(f"Triggering reboot on extender: {extender}")
+            run_command_fetch_output_from_device("reboot", extender, ssh)
+            print_success(f"Reboot command executed successfully on extender: {extender}")
+        except Exception as e:
+            print_error(request, f"Failed to reboot extender {extender}: {str(e)}")
+    # Reboot the controller
+    print_step(f"Step {step}.2: Triggering reboot on controller device.")
+    try:
+        run_command_fetch_output_from_device("systemctl reboot", "controller", ssh)
+        print_success("Reboot command executed successfully on controller.")
+    except Exception as e:
+        print_error(request, f"Failed to reboot controller: {str(e)}")
+    # Wait for reboot completion
+    print_step(f"Step {step}.3: Wait and verify the controller connection after reboot.")
+    # Initial wait after controller reboot.
+    time.sleep(180)
+    assert ssh.wait_for_controller(timeout=180, interval=60), "Controller did not come back after reboot"
+    print_success("Controller is back. Clearing stale extender tunnels.")
+    # Clear stale extender tunnels
+    ssh.clear_extender_sessions()
+    # Wait for mesh formation.
+    time.sleep(120)
+    print_step(f" Step {step}.4: Wait and verify all the extender connection after reboot.")
+    for device in ssh.enabled_extenders:
+        assert ssh.wait_for_extender(device, timeout=360, interval=60), f"{device} did not come back after reboot"
+    print_success("All extenders are back after reboot.")
+    # After reboot, wait for the mesh connection to stabilize.
+    print("Allow EasyMesh to stabilize (wait 1 minute).")
+    time.sleep(60)
