@@ -959,7 +959,7 @@ def validate_1905_message(config, profiletype, message, controller_or_agent = No
     if message in [MSG_TYPE_TOPOLOGY_NOTIFICATION, MSG_TYPE_AP_AUTOCONFIG_RENEW, MSG_TYPE_AP_AUTOCONFIG_SEARCH]:
         check.equal(verify_relay_indicator_flag_status(message, 1), True, "\nFail: Expected relay indicator flag status not found in captured packets.")
     else:
-        check.equal(verify_relay_indicator_flag_status(message, 0), False, "\nFail: Expected relay indicator flag status not found in captured packets.")
+        check.equal(verify_relay_indicator_flag_status(message, 0), True, "\nFail: Expected relay indicator flag status not found in captured packets.")
 
     if message in [MSG_TYPE_AP_AUTOCONFIG_SEARCH, MSG_TYPE_AP_AUTOCONFIGURATION_RENEW, MSG_TYPE_TOPOLOGY_NOTIFICATION, MSG_TYPE_TOPOLOGY_DISCOVERY]:
         print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to verify the presence of the 1905.1 AL MAC Address TLV and validate the value of the TLV to match with transmitter mac address")
