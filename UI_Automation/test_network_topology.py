@@ -23,9 +23,9 @@ from utils import print_step, print_error, print_success
 from skimage.metrics import structural_similarity as ssim
 import cv2
 
-# Documentation: [test_network_topology.py](Centralized_Test_Cases.md#test_network_topologypy)
+# Documentation: [test_network_topology.py](Sanity_Tests_Documentation.md#test_network_topologypy)
 
-# Documentation: [TC-TOPO-01](Centralized_Test_Cases.md#tc-topo-01-test_validate_ui_topology)
+# Documentation: [TC-TOPO-01](Sanity_Tests_Documentation.md#tc-topo-01-test_validate_ui_topology)
 def test_validate_ui_topology(config, page, request, ssh, paths):
     print_step("Entering Test1: test_validate_ui_topology")
     # Test prerequisite: Ensure at least two extenders are connected, before running the network topology test scenario.
@@ -108,7 +108,7 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
             if mld_mac and mld_mac not in tooltip_macs: 
                 print_error(request, f"MLD MAC {mld_mac} missing for SSID {ssid_name}")
             print_success(f"All BSSIDs verified for SSID '{ssid_name}'")
-    # Manually validated the network topology screenshot, as UI data may differ from the actual state
+    # Validate the network topology screenshot
     print_step("Step 7: Capture the network topology page screenshot.")
     # Close tooltip before screenshot
     page.evaluate("""
@@ -117,13 +117,14 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
         if (tooltip) tooltip.remove();
     }
     """)
-    playwright_utils.take_screenshot(page, request, paths["screenshots"] / "network_topology.png")
-    
+    topology_svg = page.locator("#topology-visualization svg").first
+    topology_svg.wait_for(state="visible", timeout=10000)
+    topology_svg.screenshot(path=paths["screenshots"] / "network_topology.png")
+    print_success(f"Current topology screenshot saved as {paths['screenshots'] / 'network_topology.png'}")
     print_step("Step 8: Verify whether the current topology matches Star or Daisychain topology from RDKB-CLI.")
     print_step("Step 8a: Verify whether the current topology matches with Star topology.")
     img1 = cv2.imread(f"{paths['network_topology_screenshots']}/star_network_topology.png")
     img2 = cv2.imread(f"{paths['screenshots']}/network_topology.png")
-    #img2 = cv2.imread(f"{paths['screenshots']}/daisychain_network_topology.png")
     gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     score, diff = ssim(gray1, gray2, full=True)
@@ -143,7 +144,7 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
         print_success("Current topology matches with Star network topology")
     print_step("Exiting Test1: test_validate_ui_topology")
 
-# Documentation: [TC-TOPO-02](Centralized_Test_Cases.md#tc-topo-02-test_determine_topology_type_from_brctl_command)
+# Documentation: [TC-TOPO-02](Sanity_Tests_Documentation.md#tc-topo-02-test_determine_topology_type_from_brctl_command)
 def test_determine_topology_type_from_brctl_command(config, request, ssh):
     print_step("Entering Test2: test_determine_topology_type_from_brctl_command")
     # Test prerequisite: Ensure at least two extenders are connected, before running the network topology test scenario.
