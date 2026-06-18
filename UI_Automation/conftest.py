@@ -216,6 +216,13 @@ def validate_config(cfg):
             for field in ["mac", "user", "pass"]:
                 if not client.get(field):
                     raise ValueError(f"LAN client '{name}' missing required field: {field}")
+    # ---- Browser Options ----
+    browser_options = cfg.get("browser_options", {})
+    if not isinstance(browser_options, dict):
+        raise ValueError("'browser_options' must be a dictionary")
+    if "headless_mode" in browser_options:
+        if not isinstance(browser_options["headless_mode"], bool):
+            raise ValueError("'browser_options.headless_mode' must be True or False")
 
 @pytest.fixture(scope="session")
 def config():
