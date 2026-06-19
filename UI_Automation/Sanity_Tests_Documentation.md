@@ -379,8 +379,8 @@ Test Type:
 #### Test Procedure and Expected Results
 | Step Number | Controller | Extender | LAN Client | Wi-Fi Client | Expected Results | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Open RDKB CLI URL and navigate to **System Settings** using Playwright navigation helpers. |  |  |  | System Settings view opens successfully. | Playwright step log. |
-| 2 | Navigate to the required RDKB CLI page (System Settings) using navigation helpers. |  |  |  | System Settings page is loaded successfully. | Playwright navigation log. |
+| 1 | Open RDKB CLI URL using Playwright helper `navigate_to_rdkbcli_page`. |  |  |  | RDKB CLI opens successfully. | Playwright step log. |
+| 2 | Navigate to **System Settings** using navigation helper `navigate_to_required_rdkbcli_page`. |  |  |  | System Settings page is loaded successfully. | Playwright navigation log. |
 | 3 | Read configured reset interface name (`wifi_reset_interface`) and retrieve its MAC from controller (`get_interface_mac_address`). |  |  |  | Interface MAC (AL MAC candidate) is fetched successfully. | SSH command output and pass log. |
 | 4 | Select the retrieved AL MAC in Wi-Fi reset dropdown (`select_wifi_reset_al_mac`). |  |  |  | Correct target interface is selected in UI. | UI selection log/screenshot (on failure). |
 | 5 | Trigger and confirm Wi-Fi reset from UI (`perform_wifi_reset`). |  |  |  | Reset workflow is accepted by UI confirmation flow. | UI dialog handling logs. |

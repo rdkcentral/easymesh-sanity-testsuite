@@ -1,4 +1,4 @@
-﻿# If not stated otherwise in this file or this component LICENSE file the
+# If not stated otherwise in this file or this component LICENSE file the
 # following copyright and licenses apply:
 #
 # Copyright 2026 RDK Management
@@ -42,9 +42,9 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
     print_step("Step 3: Collect backend topology data to validate it against the UI topology data")
     device_ssid_map, device_count = utils.fetch_tr181_topology_verification_params(ssh)
     if device_ssid_map:
-        print_success(f"TR-181 Device â†’ SSID map fetched successfully: {device_ssid_map}")
+        print_success(f"TR-181 Device -> SSID map fetched successfully: {device_ssid_map}")
     else:
-        pytest.fail("Failed to fetch TR-181 Device â†’ SSID map from backend")
+        pytest.fail("Failed to fetch TR-181 Device -> SSID map from backend")
     print_step("Step 4: Validate that the number of devices in the DML matches the number of extenders configured in the testbed")
     #Device count should match the number of extenders configured in the testbed
     num_of_extenders = len(config.get("extenders", {}))

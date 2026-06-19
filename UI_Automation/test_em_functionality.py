@@ -1,4 +1,4 @@
-﻿# If not stated otherwise in this file or this component LICENSE file the
+# If not stated otherwise in this file or this component LICENSE file the
 # following copyright and licenses apply:
 #
 # Copyright 2026 RDK Management
@@ -184,14 +184,14 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
             print_error(request, f"Channel change validation failed on agent. Expected Channel value: {new_channel}, Actual channel value: {updated_channel_agent_device}")
         else:
             print_success(f"Channel Change verification passed in Agent device with updated value {new_channel}.")
-    print_step("Entering Test3: test_rdkbcli_channel_change_preference")
+    print_step("Exiting Test3: test_rdkbcli_channel_change_preference")
 
 # Documentation: [TC-EM-04](Sanity_Tests_Documentation.md#tc-em-04-test_rdkbcli_wifi_reset_with_default_values)
 def test_rdkbcli_wifi_reset_with_default_values(config, page, request, ssh, paths):
     print_step("Entering Test4: test_rdkbcli_wifi_reset_with_default_values")
     # Navigate to Rdkbcli page
     playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
-    # Navigate to Wireless Settings page
+    # Navigate to System Settings page
     playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 2, paths)
     # Retrieve the Wi-Fi reset interface mac address from controller.
     iface_name = config["system"]["wifi_reset_interface"]
@@ -203,7 +203,7 @@ def test_rdkbcli_wifi_reset_with_default_values(config, page, request, ssh, path
         pytest.fail("Failed to retrieve AL MAC address from controller device.")
     # Select the Wi-Fi reset interface from dropdown in UI.
     playwright_utils.select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step=4)
-    # Confirm the pop-up to trigger the Wiâ€‘Fi reset.
+    # Confirm the pop-up to trigger the Wi-Fi reset.
     playwright_utils.perform_wifi_reset(page, step=5)
     # Reboot the device after Wi-Fi reset and wait for the device to come back.
     utils.reboot_device_after_wifi_reset(ssh, request, step=6)
@@ -221,7 +221,7 @@ def test_rdkbcli_wifi_reset_with_custom_values(config, page, request, ssh, paths
     print_step("Entering Test5: test_rdkbcli_wifi_reset_with_custom_values")
     # Navigate to Rdkbcli page
     playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
-    # Navigate to Wireless Settings page
+    # Navigate to System Settings page
     playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 2, paths)
     # Retrieve the Wi-Fi reset interface mac address from controller.
     iface_name = config["system"]["wifi_reset_interface"]
@@ -238,13 +238,13 @@ def test_rdkbcli_wifi_reset_with_custom_values(config, page, request, ssh, paths
     # Take screenshot after filling the custom values.
     print_step("Step 6: Take screenshot of Custom SSID and passphrase input value in RDKB CLI page before reset")
     playwright_utils.take_screenshot(page, request, paths["screenshots"] / "rdkbcli_wifi_reset_custom_values.png")
-    # Confirm the pop-up to trigger the Wiâ€‘Fi reset.
+    # Confirm the pop-up to trigger the Wi-Fi reset.
     playwright_utils.perform_wifi_reset(page, step=7)
     # Reboot the device after Wi-Fi reset and wait for the device to come back.
     utils.reboot_device_after_wifi_reset(ssh, request, step=8)
-    # Verify that the OneWifiMesh DB values match the expected default values.
-    utils.verify_wifi_db_values(config, ssh, request, expected_type="custom",step=9)
-    # Verify SSID values for each interface using iw dev against the expected default values.
+    # Verify that the OneWifiMesh DB values match the expected custom values.
+    utils.verify_wifi_db_values(config, ssh, request, expected_type="custom", step=9)
+    # Verify SSID values for each interface using iw dev against the expected custom values.
     utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="custom", step=10)
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
     print_step("Step 11: Verify any core files generated in the devices after WiFi reset.")

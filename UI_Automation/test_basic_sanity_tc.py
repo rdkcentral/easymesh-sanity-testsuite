@@ -1,4 +1,4 @@
-﻿# If not stated otherwise in this file or this component LICENSE file the
+# If not stated otherwise in this file or this component LICENSE file the
 # following copyright and licenses apply:
 #
 # Copyright 2026 RDK Management
