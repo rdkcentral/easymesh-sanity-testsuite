@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Documentation: [test_basic_sanity_tc.py](Centralized_Test_Cases.md#test_basic_sanity_tcpy)
+# Documentation: [test_basic_sanity_tc.py](Sanity_Tests_Documentation.md#test_basic_sanity_tcpy)
 
 from playwright.sync_api import expect, sync_playwright
 import pytest
@@ -26,46 +26,46 @@ from utils import print_step, print_error, print_success
 import json
 import time
 
-# Documentation: [TC-BASIC-01](Centralized_Test_Cases.md#tc-basic-01)
+# Documentation: [TC-BASIC-01](Sanity_Tests_Documentation.md#tc-basic-01)
 def test_onewifi_service_status(request, ssh):
     print_step("Entering Test1: test_onewifi_service_status")
     for step, device in enumerate(ssh.device_list, start=1):
         utils.verify_service_status(request, device, "onewifi", ssh, step)
     print_step("Exiting Test1: test_onewifi_service_status")
 	
-# Documentation: [TC-BASIC-02](Centralized_Test_Cases.md#tc-basic-02)
+# Documentation: [TC-BASIC-02](Sanity_Tests_Documentation.md#tc-basic-02)
 def test_verify_core_files_presence(request, ssh):
     print_step("Entering Test2: test_verify_core_files_presence")
     utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test2: test_verify_core_files_presence")
 
-# Documentation: [TC-BASIC-03](Centralized_Test_Cases.md#tc-basic-03)
+# Documentation: [TC-BASIC-03](Sanity_Tests_Documentation.md#tc-basic-03)
 def test_ieee1905_em_ctrl_service_status(request, ssh):
     print_step("Entering Test3: test_ieee1905_em_ctrl_service_status")
     utils.verify_service_status(request, "controller", "ieee1905_em_ctrl", ssh, 1)
     print_step("Exiting Test3: test_ieee1905_em_ctrl_service_status")
 
-# Documentation: [TC-BASIC-04](Centralized_Test_Cases.md#tc-basic-04)
+# Documentation: [TC-BASIC-04](Sanity_Tests_Documentation.md#tc-basic-04)
 def test_em_ctrl_service_status(request, ssh):
     print_step("Entering Test4: test_em_ctrl_service_status")
     utils.verify_service_status(request, "controller", "em_ctrl", ssh, 1)
     print_step("Exiting Test4: test_em_ctrl_service_status")
 
-# Documentation: [TC-BASIC-05](Centralized_Test_Cases.md#tc-basic-05)
+# Documentation: [TC-BASIC-05](Sanity_Tests_Documentation.md#tc-basic-05)
 def test_ieee1905_em_agent_service_status(request, ssh):
     print_step("Entering Test5: test_ieee1905_em_agent_service_status")
     for step, device in enumerate(ssh.device_list, start=1):
         utils.verify_service_status(request, device, "ieee1905_em_agent", ssh, step)
     print_step("Exiting Test5: test_ieee1905_em_agent_service_status")
 
-# Documentation: [TC-BASIC-06](Centralized_Test_Cases.md#tc-basic-06)
+# Documentation: [TC-BASIC-06](Sanity_Tests_Documentation.md#tc-basic-06)
 def test_em_agent_service_status(request, ssh):
     print_step("Entering Test6: test_em_agent_service_status")
     for step, device in enumerate(ssh.device_list, start=1):
         utils.verify_service_status(request, device, "em_agent", ssh, step)
     print_step("Exiting Test6: test_em_agent_service_status")
 
-# Documentation: [TC-BASIC-07](Centralized_Test_Cases.md#tc-basic-07)
+# Documentation: [TC-BASIC-07](Sanity_Tests_Documentation.md#tc-basic-07)
 def test_db_values_match_default_json(config, request, ssh): 
     print_step("Entering Test7: test_db_values_match_default_json")
     # Validate all SSID entries from Reset.json against DB dynamically.
@@ -137,7 +137,7 @@ def test_db_values_match_default_json(config, request, ssh):
         ("ieee1905*.txt", 2, 1),
     ]
 )
-# Documentation: [TC-BASIC-08](Centralized_Test_Cases.md#tc-basic-08)
+# Documentation: [TC-BASIC-08](Sanity_Tests_Documentation.md#tc-basic-08)
 def test_log_files_presence(request, ssh, pattern, ctrl_expected, agent_expected):
     print_step("Entering Test8: test_log_files_presence")
     for count, device in enumerate(ssh.device_list, start=1):
@@ -152,7 +152,7 @@ def test_log_files_presence(request, ssh, pattern, ctrl_expected, agent_expected
         print_success(f"{count_found} log files found in /tmp on {device}.")
     print_step("Exiting Test8: test_log_files_presence")
 
-# Documentation: [TC-BASIC-09](Centralized_Test_Cases.md#tc-basic-09)
+# Documentation: [TC-BASIC-09](Sanity_Tests_Documentation.md#tc-basic-09)
 def test_broadcast_default_SSID(config, request, ssh):
     print_step("Entering Test9: test_broadcast_default_SSID")
     if not ssh.enabled_wifi_clients:
@@ -212,7 +212,7 @@ def test_broadcast_default_SSID(config, request, ssh):
             print_success(f"{client_name} detects {expected_backhaul_ssid}")
     print_step("Exiting Test9: test_broadcast_default_SSID")
 
-# Documentation: [TC-BASIC-10](Centralized_Test_Cases.md#tc-basic-10)
+# Documentation: [TC-BASIC-10](Sanity_Tests_Documentation.md#tc-basic-10)
 def test_verify_agent_connectivity_to_default_gateway(request, ssh):
     print_step("Entering Test10: test_verify_agent_connectivity_to_default_gateway")
     for extender in ssh.enabled_extenders:
@@ -226,7 +226,7 @@ def test_verify_agent_connectivity_to_default_gateway(request, ssh):
             print_success(f"Agent device {extender} has connectivity to default gateway")
     print_step("Exiting Test10: test_verify_agent_connectivity_to_default_gateway")
 
-# Documentation: [TC-BASIC-11](Centralized_Test_Cases.md#tc-basic-11)
+# Documentation: [TC-BASIC-11](Sanity_Tests_Documentation.md#tc-basic-11)
 def test_ssh_controller_agent_connectivity(ssh):
     print_step("Entering Test11: test_ssh_controller_agent_connectivity")
     for count, device in enumerate(ssh.device_list, start=1):
@@ -235,7 +235,7 @@ def test_ssh_controller_agent_connectivity(ssh):
         print_success(f"SSH connectivity to {device} verified successfully. Firmware version: {out.strip()}")
     print_step("Exiting Test11: test_ssh_controller_agent_connectivity")	
 
-# Documentation: [TC-BASIC-12](Centralized_Test_Cases.md#tc-basic-12)
+# Documentation: [TC-BASIC-12](Sanity_Tests_Documentation.md#tc-basic-12)
 def test_verify_rdkbcli_browser_launch(config, page):
     print_step("Entering Test12: test_verify_rdkbcli_browser_launch")
     #Navigate to Rdkbcli page
@@ -243,7 +243,7 @@ def test_verify_rdkbcli_browser_launch(config, page):
     time.sleep(5)
     print_step("Exiting Test12: test_verify_rdkbcli_browser_launch")
 
-# Documentation: [TC-BASIC-13](Centralized_Test_Cases.md#tc-basic-13)
+# Documentation: [TC-BASIC-13](Sanity_Tests_Documentation.md#tc-basic-13)
 def test_verify_rdkbcli_tab_navigation(config, page, request, paths):
     print_step("Entering Test13: test_verify_rdkbcli_tab_navigation")
     #Navigate to Rdkbcli page
