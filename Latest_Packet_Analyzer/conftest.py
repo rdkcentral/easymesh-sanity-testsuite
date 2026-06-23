@@ -1,6 +1,10 @@
+import pytest
+
+
 global capture_file_path
 capture_file_path = r"your_capture_file_path_here.pcap" # Update this path to point to your actual capture file
 #example: capture_file_path = r"/home/user/captures/test_capture.pcap"
+
 global MSG_TYPE_TOPOLOGY_DISCOVERY
 MSG_TYPE_TOPOLOGY_DISCOVERY = 0x0000
 global MSG_TYPE_TOPOLOGY_NOTIFICATION
@@ -61,3 +65,24 @@ M2_TYPE = 0x05
 
 global ssid_name
 ssid_name = "TDKB_Test123" #update this to the actual SSID name used in your test setup
+
+global VALIDATION_LEVEL
+VALIDATION_LEVEL = 4
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--level",
+        action="store",
+        default=4,
+        type=int,
+        help="Validation level (1 to 4)"
+    )
+
+def pytest_configure(config):
+    global VALIDATION_LEVEL
+    VALIDATION_LEVEL = config.getoption("--level")
+
+@pytest.fixture(scope="session")
+def validation_level(request):
+    return VALIDATION_LEVEL

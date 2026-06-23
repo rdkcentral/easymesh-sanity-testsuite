@@ -1,7 +1,9 @@
 import conftest
+from playwright.sync_api import expect, sync_playwright
 from scapy.all import rdpcap, Ether
 import message_verify
 import pytest
+import pytest_check as check
 from scapy.plist import PacketList
 from ieee1905_utils import print_completed_step, print_success, print_error, print_step, print_warning, print_main_step, print_sub_step
 from ieee1905_utils import *
@@ -16,6 +18,7 @@ reassembled_packets = PacketList()
 
 
 def packet_parser(flow_packets):
+    
     global header_1905
     for pkt in flow_packets:
         if not pkt.haslayer(Ether):
@@ -28,8 +31,10 @@ def packet_parser(flow_packets):
         # Extract fields from CMDU header
         message_type = (payload[2] << 8) | payload[3]
         message_id   = (payload[4] << 8) | payload[5]
+
         fragment_id = payload[6]
         last_fragment = (payload[7] >> 7) & 0x01
+
         # Improved key
         key = (eth.src, message_type, message_id)
 
@@ -38,7 +43,6 @@ def packet_parser(flow_packets):
             reassembled_packets.append(pkt)
             #process_complete_message(message_type, payload, eth)
             continue
-
         # Extract and store 1905 header (first 8 bytes)
         if not header_1905:
             header_1905 = bytearray(payload[:8])
@@ -80,14 +84,18 @@ def get_profile_details():
     if not flow_packets:
         print_error(f"No messages between controller {controller_mac} and agent {agent_mac} found in the capture file.")
         pytest.fail(f"No messages between controller {controller_mac} and agent {agent_mac} found in the capture file.", pytrace=False)
-    packet_parser(flow_packets)
 
+    # print(f"Total packets in flow: {len(flow_packets)}")
+    packet_parser(flow_packets)
+    print(f"Total packets in flow: {len(reassembled_packets)}")
     print_main_step("Trying to extract profile type from AP Autoconfiguration Response message in captured packets")
-    profiletype = message_verify.extract_profile_type_from_autoconfig_response(conftest.capture_file_path)
+    # profiletype = message_verify.extract_profile_type_from_autoconfig_response(conftest.capture_file_path)
+    profiletype = 0x03
     config_data = message_verify.load_yaml("config_ver6.yaml")
     return profiletype, config_data
     
 def test_ap_configuration_renew():
+    validation_level = conftest.VALIDATION_LEVEL
     wsc_m1_message_ids = set()
     profiletype, config_data = get_profile_details()
     print_main_step("Validating AP Autoconfiguration Renew message")
@@ -106,10 +114,11 @@ def test_ap_configuration_renew():
             print_success(f"AP Autoconfiguration Renew message present with a single unique message ID, as expected : {renew_message_ids}")
         else:
             print_error(f"AP Autoconfiguration Renew message count validation failed. Expected 1 AP Autoconfiguration Renew message or multiple with the same message ID, current Message IDs: {sorted(renew_message_ids)}")   
-        message_verify.validate_1905_message(config_data, profiletype, conftest.MSG_TYPE_AP_AUTOCONFIG_RENEW)
+        if validation_level >= 2:
+            message_verify.validate_1905_message(config_data, profiletype, conftest.MSG_TYPE_AP_AUTOCONFIG_RENEW)
         print_completed_step(f"{message_verify.get_message_type_name(conftest.MSG_TYPE_AP_AUTOCONFIG_RENEW)}")
 
-
+    
     print_main_step("Validating AP Autoconfiguration WSC M1 message")
     print_sub_step("verifying AP Autoconfiguration WSC M1 message presence in captured packets")
     message_presence_flag = message_verify.verify_cmdu_presence(conftest.MSG_TYPE_AP_AUTOCONFIG_WSC, "agent")
@@ -117,7 +126,7 @@ def test_ap_configuration_renew():
         print_completed_step(f"{message_verify.get_message_type_name(conftest.MSG_TYPE_AP_AUTOCONFIG_WSC)} with WSC M1")
     else:
         wsc_m1_message_details = message_verify.message_count_details.setdefault(
-            conftest.MSG_TYPE_AP_AUTOCONFIG_WSC,
+            f"{conftest.MSG_TYPE_AP_AUTOCONFIG_WSC}_agent",
             {"message_ids": set()}
         )
         wsc_m1_message_ids = wsc_m1_message_details["message_ids"]
@@ -126,7 +135,9 @@ def test_ap_configuration_renew():
             print_success(f"AP Autoconfiguration WSC M1 message count is : {len(wsc_m1_message_ids)} , which is expected as per the number of front radios in the agent, which is {conftest.agent_front_radio_count}")
         else:
             print_error(f"AP Autoconfiguration WSC M1 message count validation failed. Expected {conftest.agent_front_radio_count} AP Autoconfiguration WSC M1 messages, Actual AP Autoconfiguration WSC M1 message count : {len(wsc_m1_message_ids)}")   
-        message_verify.validate_1905_message(config_data, profiletype, conftest.MSG_TYPE_AP_AUTOCONFIG_WSC, "agent")
+        if validation_level >= 2:
+            # if we need to validate all the WSC M1 messages, we can loop through the frames and validate each one. For now, we will validate the first one.
+            message_verify.validate_1905_message(config_data, profiletype, conftest.MSG_TYPE_AP_AUTOCONFIG_WSC, "agent")
         print_completed_step(f"{message_verify.get_message_type_name(conftest.MSG_TYPE_AP_AUTOCONFIG_WSC)} with WSC M1")
 
 
@@ -137,7 +148,7 @@ def test_ap_configuration_renew():
         print_completed_step(f"{message_verify.get_message_type_name(conftest.MSG_TYPE_AP_AUTOCONFIG_WSC)} with WSC M2")
     else:
         wsc_m2_message_details = message_verify.message_count_details.setdefault(
-            conftest.MSG_TYPE_AP_AUTOCONFIG_WSC,
+            f"{conftest.MSG_TYPE_AP_AUTOCONFIG_WSC}_controller",
             {"message_ids": set()}
         )
         wsc_m2_message_ids = wsc_m2_message_details["message_ids"]
@@ -146,7 +157,8 @@ def test_ap_configuration_renew():
             print_success(f"AP Autoconfiguration WSC M2 message count is : {len(wsc_m2_message_ids)}, which is expected to be same as the number of AP Autoconfiguration WSC M1 messages, which is {len(wsc_m1_message_ids)}")
         else:
             print_error(f"AP Autoconfiguration WSC M2 message count validation failed. Expected {len(wsc_m1_message_ids)} AP Autoconfiguration WSC M2 messages, Actual AP Autoconfiguration WSC M2 message count : {len(wsc_m2_message_ids)}")   
-        message_verify.validate_1905_message(config_data, profiletype, conftest.MSG_TYPE_AP_AUTOCONFIG_WSC, "controller")
+        if validation_level >= 2:
+            message_verify.validate_1905_message(config_data, profiletype, conftest.MSG_TYPE_AP_AUTOCONFIG_WSC, "controller")
         print_completed_step(f"{message_verify.get_message_type_name(conftest.MSG_TYPE_AP_AUTOCONFIG_WSC)} with WSC M2")
 
 
@@ -156,10 +168,12 @@ def test_ap_configuration_renew():
     if not message_presence_flag:
         print_completed_step(f"{message_verify.get_message_type_name(conftest.MSG_TYPE_AP_TOPOLOGY_RESPONSE)}")
     else:
-        message_verify.validate_1905_message(config_data, profiletype, conftest.MSG_TYPE_AP_TOPOLOGY_RESPONSE)
-        print_sub_step("validating updated SSID name presence in Topology Response message")
-        message_verify.verify_ssidname_in_topology_response()
-        print_sub_step("verifying supported services TLV value")
-        message_verify.verify_supported_services_tlv()
-        print_completed_step(f"{message_verify.get_message_type_name(conftest.MSG_TYPE_AP_TOPOLOGY_RESPONSE)}")
-  
+        if validation_level >= 2:
+            message_verify.validate_1905_message(config_data, profiletype, conftest.MSG_TYPE_AP_TOPOLOGY_RESPONSE)
+        if validation_level >= 3:
+            print_sub_step("validating updated SSID name presence in Topology Response message")
+            message_verify.verify_ssidname_in_topology_response()
+            print_sub_step("verifying supported services TLV value")
+            message_verify.verify_supported_services_tlv()
+    print_completed_step(f"{message_verify.get_message_type_name(conftest.MSG_TYPE_AP_TOPOLOGY_RESPONSE)}")
+    

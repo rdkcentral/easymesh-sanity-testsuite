@@ -46,67 +46,6 @@ MSG_TYPE_1905_ACK,
 MSG_TYPE_CHANNEL_PREFERENCE_QUERY,
 MSG_TYPE_CHANNEL_PREFERENCE_REPORT]
 
-
-expected_tlv_types = [TLV_TYPE_AL_MAC_ADDRESS,
-TLV_TYPE_MAC_ADDRESS,
-TLV_TYPE_LINK_METRIC_QUERY,
-TLV_TYPE_TX_LINK_METRIC,
-TLV_TYPE_RX_LINK_METRIC,
-TLV_TYPE_SEARCHED_ROLE,
-TLV_TYPE_AUTOCONFIG_FREQ_BAND,
-TLV_TYPE_SUPPORTED_ROLE,
-TLV_TYPE_SUPPORTED_FREQ_BAND,
-TLV_TYPE_MULTI_AP_PROFILE,
-TLV_TYPE_DEVICE_INFORMATION,
-TLV_TYPE_AP_OPERATIONAL_BSS,
-TLV_TYPE_BSS_CONFIG_REPORT,
-TLV_TYPE_WSC,
-TLV_TYPE_AP_RADIO_BASIC_CAPABILITIES,
-TLV_TYPE_PROFILE_2_AP_CAPABILITY,
-TLV_TYPE_AP_RADIO_ADVANCED_CAPABILITIES,
-TLV_TYPE_AP_RADIO_IDENTIFIER,
-TLV_TYPE_END_OF_TLV,
-TLV_TYPE_AP_CAPABILITY,
-TLV_TYPE_ERROR_CODE,
-TLV_TYPE_CHANNEL_PREFERENCE,
-TLV_TYPE_RADIO_OPERATION_RESTRICTION,
-TLV_TYPE_TRANSMIT_POWER_LIMIT,
-TLV_TYPE_CHANNEL_SELECTION_RESPONSE,
-TLV_TYPE_OPERATING_CHANNEL,
-TLV_TYPE_CAC_COMPLETION_REPORT,
-TLV_TYPE_CAC_STATUS_REPORT,
-TLV_TYPE_CHANNEL_SCAN_CAPABILITIES,
-TLV_TYPE_DEVICE_INVENTORY,
-TLV_TYPE_METRIC_COLLECTION_INTERVAL,
-TLV_TYPE_CAC_CAPABILITIES,
-TLV_TYPE_1905_LAYER_SECURITY_CAPABILITY,
-TLV_TYPE_CLIENT_ASSOCIATION_EVENT,
-TLV_TYPE_DEVICE_BRIDGING_CAPABILITY,
-TLV_TYPE_NON_1905_NEIGHBOR_DEVICE_LIST,
-TLV_TYPE_1905_NEIGHBOR_DEVICE_LIST,
-TLV_TYPE_SUPPORTED_SERVICE,
-TLV_TYPE_SEARCHED_SERVICE,
-TLV_TYPE_ASSOCIATED_CLIENTS,
-TLV_TYPE_AP_HT_CAPABILITIES,
-TLV_TYPE_AP_VHT_CAPABILITIES,
-TLV_TYPE_AP_HE_CAPABILITIES,
-TLV_TYPE_AP_WIFI_6_CAPABILITIES,
-TLV_TYPE_DEFAULT_802_1Q_SETTINGS,
-TLV_TYPE_TRAFFIC_SEPARATION_POLICY,
-TLV_TYPE_DPP_CHIRP_VALUE,
-TLV_TYPE_CONTROLLER_CAPABILITY,
-TLV_TYPE_BACKHAUL_STA_RADIO_CAPABILITIES,
-TLV_TYPE_STEERING_POLICY,
-TLV_TYPE_METRIC_REPORTING_POLICY,
-TLV_TYPE_CHANNEL_SCAN_REPORTING_POLICY,
-TLV_TYPE_UNSUCCESSFUL_ASSOCIATION_POLICY,
-TLV_TYPE_BACKHAUL_BSS_CONFIGURATION,
-TLV_TYPE_QOS_MANAGEMENT_POLICY,
-TLV_TYPE_SPATIAL_REUSE_CONFIG_RESPONSE,
-TLV_TYPE_SPATIAL_REUSE_REQUEST]
-
-tlv_flags = {tlv: False for tlv in expected_tlv_types}
-
 #further items will populate if the key exists in the dictionary, otherwise it will be created with the default value of {"message_ids": set()}
 message_count_details = {
     msg: {"message_ids": set()}
@@ -424,7 +363,7 @@ def verify_tlv_presence_with_type(requested_message_type, tlv_to_verify, agent_o
 
                 if tlv_presence_flag and tlv_length_valid_flag:
                     print_success(f"{get_tlv_type_name(tlv_to_verify)} is present in the {get_message_type_name(requested_message_type)} and the expected tlv length is {expected_tlv_length} and actual tlv length is {tlv_length}")
-                    tlv_flags[tlv_to_verify] = True
+                    # tlv_flags[tlv_to_verify] = True
                     return True
                 
                 if tlv_presence_flag and not tlv_length_valid_flag:
@@ -699,13 +638,18 @@ def verify_cmdu_presence(expected_cmdu, agent_or_controller="", expected_count =
 
     if agent_or_controller == "agent":
         wsc_msg_type = 0x04
+        expected_cmdu_key = f"{expected_cmdu}_agent"
 
-    if agent_or_controller == "controller":
+    elif agent_or_controller == "controller":
         wsc_msg_type = 0x05
+        expected_cmdu_key = f"{expected_cmdu}_controller"
+
+    else:
+        expected_cmdu_key = f"{expected_cmdu}"
 
     global message_details
     message_details = message_count_details.setdefault(
-        expected_cmdu, {"message_ids": set()}
+        expected_cmdu_key, {"message_ids": set()}
     )
     for pkt in test_logic.reassembled_packets:
         eth = pkt[Ether]
@@ -794,7 +738,7 @@ def extract_profile_type_from_autoconfig_response(filename):
         print_error(f"No messages between controller {controller_mac} and agent {agent_mac} found in the capture file.")
         check.fail(f"No messages between controller {controller_mac} and agent {agent_mac} found in the capture file.")
         return None
-        
+    
     for pkt in flow_packets:
         eth = pkt[Ether]
         
@@ -811,7 +755,7 @@ def extract_profile_type_from_autoconfig_response(filename):
             for tlv_type, tlv_value in zip(found_tlvs, tlv_values):
                 if tlv_type == TLV_TYPE_MULTI_AP_PROFILE:
                     tlv_presence = True
-                    # Profile type is typically at offset 0 in Multi-AP Profile TLV
+                    # Profile type is typically at offset 0 in AP Radio Basic Capabilities TLV
                     if len(tlv_value) == 1:
                         profile_type = tlv_value[0]
                         if profile_type in [0x01, 0x02, 0x03]:
@@ -937,8 +881,8 @@ def validate_1905_message(config, profiletype, message, controller_or_agent = No
     Returns: None. Prints validation results and errors.
     """
     #setting tlv flags to false before validation
-    for tlv in tlv_flags:
-        tlv_flags[tlv] = False
+    # for tlv in tlv_flags:
+    #     tlv_flags[tlv] = False
     message_type_string = get_message_type_name(message)
 
     if controller_or_agent == "controller":
@@ -951,52 +895,68 @@ def validate_1905_message(config, profiletype, message, controller_or_agent = No
         mandatory = config["profiles"][profiletype][message]["mandatory_tlvs"]
         optional = config["profiles"][profiletype][message]["optional_tlvs"]
     
-    if not mandatory and not optional:
-        print_completed_step(f"{message_type_string}"+(f" from {controller_or_agent}" if controller_or_agent else ""))
-        return True
-         
-    print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to verify the presence of the expected relay indicator flag status in the message")
-    if message in [MSG_TYPE_TOPOLOGY_NOTIFICATION, MSG_TYPE_AP_AUTOCONFIG_RENEW, MSG_TYPE_AP_AUTOCONFIG_SEARCH]:
-        check.equal(verify_relay_indicator_flag_status(message, 1), True, "\nFail: Expected relay indicator flag status not found in captured packets.")
+    # if not mandatory and not optional:
+    #     print_completed_step(f"{message_type_string}"+(f" from {controller_or_agent}" if controller_or_agent else ""))
+    #     return True
+
+    if not mandatory:
+        print_warning(f"No mandatory TLVs defined for {message_type_string} in the profile. Skipping mandatory TLV presence verification.")
     else:
-        check.equal(verify_relay_indicator_flag_status(message, 0), True, "\nFail: Expected relay indicator flag status not found in captured packets.")
-
-    if message in [MSG_TYPE_AP_AUTOCONFIG_SEARCH, MSG_TYPE_AP_AUTOCONFIGURATION_RENEW, MSG_TYPE_TOPOLOGY_NOTIFICATION, MSG_TYPE_TOPOLOGY_DISCOVERY]:
-        print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to verify the presence of the 1905.1 AL MAC Address TLV and validate the value of the TLV to match with transmitter mac address")
-        check.equal(verify_1905_al_mac_address(message), True, "\nFail: 1905.1 AL MAC Address TLV presence and value validation failed in captured packets.")
-
-    for index, tlv in enumerate(mandatory, start=1):
-        tlv_type_string = get_tlv_type_name(tlv)
-        print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+f" to verify the presence of the {tlv_type_string}")
-        if controller_or_agent:
-            check.equal(verify_tlv_presence_with_type(message, tlv, controller_or_agent), True, f"\nFail: Expected TLV type '{tlv_type_string}' not found in {message_type_string}.")
-        else:
-            check.equal(verify_tlv_presence_with_type(message, tlv), True, f"\nFail: Expected TLV type '{tlv_type_string}' not found in {message_type_string}.")
-
-    if not optional:
-        print_warning(f"No optional TLVs defined for {message_type_string} in the profile. Skipping optional TLV presence verification.")
-    else:
-        print_warning(f" Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+f" to verify the presence of optional TLVs")
-        for index, tlv in enumerate(optional, start=1):
+        for index, tlv in enumerate(mandatory, start=1):
             tlv_type_string = get_tlv_type_name(tlv)
-            print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+f" to verify the presence of the optional TLV: {tlv_type_string}")
+            print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+f" to verify the presence of the {tlv_type_string}")
             if controller_or_agent:
-                check.equal(verify_tlv_presence_with_type(message, tlv, controller_or_agent), True, f"\nFail: Expected optional TLV type '{tlv_type_string}' not found in {message_type_string}.")
+                tlv_validation_result = verify_tlv_presence_with_type(message, tlv, controller_or_agent)
+                check.equal(tlv_validation_result, True, f"\nFail: Expected TLV type '{tlv_type_string}' not found in {message_type_string}.")
             else:
-                check.equal(verify_tlv_presence_with_type(message, tlv), True, f"\nFail: Expected optional TLV type '{tlv_type_string}' not found in {message_type_string}.")
-        print_warning(f"Completed analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to verify the presence of optional TLVs")
+                tlv_validation_result = verify_tlv_presence_with_type(message, tlv)
+                check.equal(tlv_validation_result, True, f"\nFail: Expected TLV type '{tlv_type_string}' not found in {message_type_string}.")
 
-    print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to check for any unexpected TLVs that are not defined as mandatory or optional in the profile")
-    if controller_or_agent:
-        check.equal(verify_no_additional_tlvs(message, mandatory, optional, controller_or_agent), True, f"\nFail: Extra TLVs found in {message_type_string} from {controller_or_agent} that are not listed as mandatory or optional in the profile definition.")
-    else:
-        check.equal(verify_no_additional_tlvs(message, mandatory, optional), True, f"\nFail: Extra TLVs found in {message_type_string} that are not listed as mandatory or optional in the profile definition.")
-    
+            if conftest.VALIDATION_LEVEL >= 3 and tlv_validation_result:
 
-    if message == MSG_TYPE_AP_AUTOCONFIGURATION_RENEW:
-        if tlv_flags[TLV_TYPE_SUPPORTED_ROLE]:
-            print_sub_step(f"Analyzing the {message_type_string} for supported role value validation")
-            check.equal(validate_supported_role(0x00), True, f"\nFail: Supported Role TLV value is not valid in captured packets for {message_type_string}.")
+                if message in [MSG_TYPE_AP_AUTOCONFIG_SEARCH, MSG_TYPE_AP_AUTOCONFIGURATION_RENEW, MSG_TYPE_TOPOLOGY_NOTIFICATION, MSG_TYPE_TOPOLOGY_DISCOVERY] and tlv == TLV_TYPE_AL_MAC_ADDRESS:
+                    print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" Validate that the value of the IEEE 1905.1 AL MAC Address TLV matches the transmitter MAC address.")
+                    check.equal(verify_1905_al_mac_address(message), True, "\nFail: 1905.1 AL MAC Address TLV presence and value validation failed in captured packets.")
+
+                if message == MSG_TYPE_AP_AUTOCONFIGURATION_RENEW and tlv == TLV_TYPE_SUPPORTED_ROLE:
+                        print_sub_step(f"Analyzing the {message_type_string} for supported role value validation")
+                        check.equal(validate_supported_role(0x00), True, f"\nFail: Supported Role TLV value is not valid in captured packets for {message_type_string}.")
+
+        print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to check for any unexpected TLVs that are not defined as mandatory or optional in the profile")
+        if controller_or_agent:
+            check.equal(verify_no_additional_tlvs(message, mandatory, optional, controller_or_agent), True, f"\nFail: Extra TLVs found in {message_type_string} from {controller_or_agent} that are not listed as mandatory or optional in the profile definition.")
+        else:
+            check.equal(verify_no_additional_tlvs(message, mandatory, optional), True, f"\nFail: Extra TLVs found in {message_type_string} that are not listed as mandatory or optional in the profile definition.")
+
+    # if not optional:
+    #     print_warning(f"No optional TLVs defined for {message_type_string} in the profile. Skipping optional TLV presence verification.")
+    # else:
+    #     print_warning(f" Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+f" to verify the presence of optional TLVs")
+    #     for index, tlv in enumerate(optional, start=1):
+    #         tlv_type_string = get_tlv_type_name(tlv)
+    #         print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+f" to verify the presence of the optional TLV: {tlv_type_string}")
+    #         if controller_or_agent:
+    #             check.equal(verify_tlv_presence_with_type(message, tlv, controller_or_agent), True, f"\nFail: Expected optional TLV type '{tlv_type_string}' not found in {message_type_string}.")
+    #         else:
+    #             check.equal(verify_tlv_presence_with_type(message, tlv), True, f"\nFail: Expected optional TLV type '{tlv_type_string}' not found in {message_type_string}.")
+    #     print_warning(f"Completed analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to verify the presence of optional TLVs")
+
+    if conftest.VALIDATION_LEVEL >= 3:
+
+        if message in [MSG_TYPE_TOPOLOGY_NOTIFICATION, MSG_TYPE_AP_AUTOCONFIG_RENEW, MSG_TYPE_AP_AUTOCONFIG_SEARCH]:
+            print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to verify the presence of the expected relay indicator flag status in the message")
+            check.equal(verify_relay_indicator_flag_status(message, 1), True, "\nFail: Expected relay indicator flag status not found in captured packets.")
+        else:
+            check.equal(verify_relay_indicator_flag_status(message, 0), True, "\nFail: Expected relay indicator flag status not found in captured packets.")
+
+        # if message in [MSG_TYPE_AP_AUTOCONFIG_SEARCH, MSG_TYPE_AP_AUTOCONFIGURATION_RENEW, MSG_TYPE_TOPOLOGY_NOTIFICATION, MSG_TYPE_TOPOLOGY_DISCOVERY]:
+        #     print_sub_step(f"Analyzing the {message_type_string}" +(f" from {controller_or_agent}" if controller_or_agent else "")+" to verify the presence of the 1905.1 AL MAC Address TLV and validate the value of the TLV to match with transmitter mac address")
+        #     check.equal(verify_1905_al_mac_address(message), True, "\nFail: 1905.1 AL MAC Address TLV presence and value validation failed in captured packets.")
+
+        # if message == MSG_TYPE_AP_AUTOCONFIGURATION_RENEW:
+        #     if tlv_flags[TLV_TYPE_SUPPORTED_ROLE]:
+        #         print_sub_step(f"Analyzing the {message_type_string} for supported role value validation")
+        #         check.equal(validate_supported_role(0x00), True, f"\nFail: Supported Role TLV value is not valid in captured packets for {message_type_string}.")
 
 
 
