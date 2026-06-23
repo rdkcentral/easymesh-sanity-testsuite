@@ -30,12 +30,14 @@ def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     print_step("Entering Test1: test_rdkbcli_update_verify_ssid")
     new_ssid = "TDKB_New_SSID_02"
     playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "ssid", new_ssid, 'Fronthaul', 5000)
-    utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 6)
+    if not utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 6):
+        pytest.fail(f"SSID update did not propagate to all devices. Expected: {new_ssid}")
     #revert the SSID back to default value
     print_step("Step 8: Revert the SSID value back to default in RDKB CLI and verify the update on devices")
     default_ssid = config["database"]["network_ssid_map"]["Fronthaul"]["default_ssid"]
     playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 9, "ssid", default_ssid, 'Fronthaul', 5000)
-    utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, default_ssid, 14)
+    if not utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, default_ssid, 14):
+        pytest.fail(f"SSID update did not propagate to all devices. Expected: {default_ssid}")
     print_step("Exiting Test1: test_rdkbcli_update_verify_ssid")
 
 # Documentation: [TC-EM-02](Sanity_Tests_Documentation.md#tc-em-02-test_rdkbcli_update_verify_password)
@@ -43,12 +45,14 @@ def test_rdkbcli_update_verify_password(config, page, request, ssh, paths):
     print_step("Entering Test2: test_rdkbcli_update_verify_password")
     new_pass = "TestTDKB@12345"
     playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "passphrase", new_pass, 'Fronthaul', 15000)
-    utils.verify_password_update_in_controller_and_agent(config, request, ssh, new_pass, 6)
+    if not utils.verify_password_update_in_controller_db(config, request, ssh, new_pass, 6):
+        pytest.fail(f"Passphrase update verification failed on controller DB. Expected: {new_pass}")
     #revert the Passphrase back to default value
     print_step("Step 8: Revert the Passphrase value back to default in RDKB CLI and verify the update on device")
     default_pass = config["database"]["network_ssid_map"]["Fronthaul"]["default_pass"]
     playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 9, "passphrase", default_pass, 'Fronthaul', 15000)
-    utils.verify_password_update_in_controller_and_agent(config, request, ssh, default_pass, 14)
+    if not utils.verify_password_update_in_controller_db(config, request, ssh, default_pass, 14):
+        pytest.fail("Passphrase update verification failed on controller DB. Expected: {default_pass}")
     print_step("Exiting Test2: test_rdkbcli_update_verify_password")
 
 # Documentation: [TC-EM-03](Sanity_Tests_Documentation.md#tc-em-03-test_rdkbcli_channel_change_preference-skipped-in-current-suite)
@@ -189,30 +193,41 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
 # Documentation: [TC-EM-04](Sanity_Tests_Documentation.md#tc-em-04-test_rdkbcli_wifi_reset_with_default_values)
 def test_rdkbcli_wifi_reset_with_default_values(config, page, request, ssh, paths):
     print_step("Entering Test4: test_rdkbcli_wifi_reset_with_default_values")
+    # Set Wi-Fi SSID and Passphrase to non-default values before performing Wi-Fi reset with default values to validate the reset functionality.
+    new_ssid = "TDKB_New_SSID_03"
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "ssid", new_ssid, 'Fronthaul', 5000)
+    if not utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 6):
+        pytest.fail(f"SSID update did not propagate to all devices. Expected: {new_ssid}")
+    new_pass = "TestTDKB@1234"
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 8, "passphrase", new_pass, 'Fronthaul', 15000)
+    if not utils.verify_password_update_in_controller_db(config, request, ssh, new_pass, 13):
+        pytest.fail(f"Passphrase update verification failed on controller DB. Expected: {new_pass}")
+    # Wait for a few seconds to ensure the changes are applied before proceeding with Wi-Fi reset.
+    time.sleep(20)
     # Navigate to Rdkbcli page
-    playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
+    playwright_utils.navigate_to_rdkbcli_page(config, page, 15)
     # Navigate to System Settings page
-    playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 2, paths)
+    playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 16, paths)
     # Retrieve the Wi-Fi reset interface mac address from controller.
     iface_name = config["system"]["wifi_reset_interface"]
-    print_step(f"Step 3: Retrieve the {iface_name} interface MAC from the controller.")
+    print_step(f"Step 17: Retrieve the {iface_name} interface MAC from the controller.")
     al_mac_address = utils.get_interface_mac_address("controller", iface_name, ssh)
     if al_mac_address:
         print_success("AL MAC address retrieved successfully from controller device.")
     else:
         pytest.fail("Failed to retrieve AL MAC address from controller device.")
     # Select the Wi-Fi reset interface from dropdown in UI.
-    playwright_utils.select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step=4)
+    playwright_utils.select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step=18)
     # Confirm the pop-up to trigger the Wi-Fi reset.
-    playwright_utils.perform_wifi_reset(page, step=5)
+    playwright_utils.perform_wifi_reset(page, step=19)
     # Reboot the device after Wi-Fi reset and wait for the device to come back.
-    utils.reboot_device_after_wifi_reset(ssh, request, step=6)
+    utils.reboot_device_after_wifi_reset(ssh, request, step=20)
     # Verify that the OneWifiMesh DB values match the expected default values.
-    utils.verify_wifi_db_values(config, ssh, request, expected_type="default",step=7)
+    utils.verify_wifi_db_values(config, ssh, request, expected_type="default",step=21)
     # Verify SSID values for each interface using iw dev against the expected default values.
-    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="default", step=8)
+    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="default", step=22)
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
-    print_step("Step 9: Verify any core files generated in the devices after WiFi reset.")
+    print_step("Step 23: Verify any core files generated in the devices after WiFi reset.")
     utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test4: test_rdkbcli_wifi_reset_with_default_values")
 

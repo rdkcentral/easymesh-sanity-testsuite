@@ -56,7 +56,9 @@ def test_fronthaul_wifi_client_connectivity_with_updated_ssid(config, page, requ
         playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "ssid", default_ssid, 'Fronthaul', 5000)
         ssid_revert_status = utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, default_ssid, 6)
         if ssid_revert_status:
-            print_success("Successfully reverted back the SSID to default value")
+            print_success(f"Successfully reverted back the SSID to default value {default_value}")
         else:
-            print_error(request, "Failed to revert back the SSID to default value")
+            print_error(request, f"Failed to revert back the SSID to default value {default_value")
+    else:
+        print_error(request, f"Failed to set SSID to the new value {new_ssid}")
     print_step("Exiting Test2: test_fronthaul_wifi_client_connectivity_with_updated_ssid")
