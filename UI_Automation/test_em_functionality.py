@@ -189,30 +189,39 @@ def test_rdkbcli_channel_change_preference(config, request, page, radio_cfg, ssh
 # Documentation: [TC-EM-04](Sanity_Tests_Documentation.md#tc-em-04-test_rdkbcli_wifi_reset_with_default_values)
 def test_rdkbcli_wifi_reset_with_default_values(config, page, request, ssh, paths):
     print_step("Entering Test4: test_rdkbcli_wifi_reset_with_default_values")
+    # Set Wi-Fi SSID and Passphrase to non-default values before performing Wi-Fi reset with default values to validate the reset functionality.
+    new_ssid = "TDKB_New_SSID_03"
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "ssid", new_ssid, 'Fronthaul', 5000)
+    utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 6)
+    new_pass = "TestTDKB@1234"
+    playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 8, "passphrase", new_pass, 'Fronthaul', 15000)
+    utils.verify_password_update_in_controller_and_agent(config, request, ssh, new_pass, 13)
+    # Wait for a few seconds to ensure the changes are applied before proceeding with Wi-Fi reset.
+    time.sleep(20)
     # Navigate to Rdkbcli page
-    playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
+    playwright_utils.navigate_to_rdkbcli_page(config, page, 14)
     # Navigate to System Settings page
-    playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 2, paths)
+    playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 15, paths)
     # Retrieve the Wi-Fi reset interface mac address from controller.
     iface_name = config["system"]["wifi_reset_interface"]
-    print_step(f"Step 3: Retrieve the {iface_name} interface MAC from the controller.")
+    print_step(f"Step 16: Retrieve the {iface_name} interface MAC from the controller.")
     al_mac_address = utils.get_interface_mac_address("controller", iface_name, ssh)
     if al_mac_address:
         print_success("AL MAC address retrieved successfully from controller device.")
     else:
         pytest.fail("Failed to retrieve AL MAC address from controller device.")
     # Select the Wi-Fi reset interface from dropdown in UI.
-    playwright_utils.select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step=4)
+    playwright_utils.select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step=17)
     # Confirm the pop-up to trigger the Wi-Fi reset.
-    playwright_utils.perform_wifi_reset(page, step=5)
+    playwright_utils.perform_wifi_reset(page, step=18)
     # Reboot the device after Wi-Fi reset and wait for the device to come back.
-    utils.reboot_device_after_wifi_reset(ssh, request, step=6)
+    utils.reboot_device_after_wifi_reset(ssh, request, step=19)
     # Verify that the OneWifiMesh DB values match the expected default values.
-    utils.verify_wifi_db_values(config, ssh, request, expected_type="default",step=7)
+    utils.verify_wifi_db_values(config, ssh, request, expected_type="default",step=20)
     # Verify SSID values for each interface using iw dev against the expected default values.
-    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="default", step=8)
+    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="default", step=21)
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
-    print_step("Step 9: Verify any core files generated in the devices after WiFi reset.")
+    print_step("Step 22: Verify any core files generated in the devices after WiFi reset.")
     utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test4: test_rdkbcli_wifi_reset_with_default_values")
 
