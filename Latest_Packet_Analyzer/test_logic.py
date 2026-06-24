@@ -1,5 +1,4 @@
 import conftest
-from playwright.sync_api import expect, sync_playwright
 from scapy.all import rdpcap, Ether
 import message_verify
 import pytest
@@ -89,8 +88,7 @@ def get_profile_details():
     packet_parser(flow_packets)
     print(f"Total packets in flow: {len(reassembled_packets)}")
     print_main_step("Trying to extract profile type from AP Autoconfiguration Response message in captured packets")
-    # profiletype = message_verify.extract_profile_type_from_autoconfig_response(conftest.capture_file_path)
-    profiletype = 0x03
+    profiletype = message_verify.extract_profile_type_from_autoconfig_response(conftest.capture_file_path)
     config_data = message_verify.load_yaml("config_ver6.yaml")
     return profiletype, config_data
     

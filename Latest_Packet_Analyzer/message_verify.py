@@ -172,48 +172,6 @@ def get_tlv_type_name(tlv_type):
     }
     return tlv_names.get(tlv_type, f"Unknown TLV type: 0x{tlv_type:02X}")
 
-def verify_channel_selection_response_code():
-    message_presence = False
-    tlv_presence = False
-    tlv_value = None
-
-    for pkt in test_logic.reassembled_packets:
-        eth = pkt[Ether]
-        if eth.type != ETHERTYPE_1905:
-            continue
-        
-        payload = bytes(eth.payload)
-        message_type = (payload[2] << 8) | payload[3]
-
-        if message_type == MSG_TYPE_CHANNEL_SELECTION_RESPONSE:
-            message_presence = True
-            found_tlvs, tlv_length, tlv_values, _, _ = parse_tlvs(payload)
-
-            for tlv_type, tlv_value in zip(found_tlvs, tlv_values):
-                if tlv_type == TLV_TYPE_CHANNEL_SELECTION_RESPONSE:
-                    tlv_presence = True
-                    break
-            
-            if tlv_presence:
-                break
-
-    if not message_presence:
-        print_error(f"{get_message_type_name(MSG_TYPE_CHANNEL_SELECTION_RESPONSE)} not found in capture file")
-        return False
-    
-    if not tlv_presence:
-        print_error(f"{get_tlv_type_name(TLV_TYPE_CHANNEL_SELECTION_RESPONSE)} TLV not found in {get_message_type_name(MSG_TYPE_CHANNEL_SELECTION_RESPONSE)}")
-        return False
-    
-    # Assuming the first byte of the TLV value represents the response code
-    if tlv_value is not None and tlv_value[6] == 0x00:  # 0x00 indicates success
-        print_success(f"{get_tlv_type_name(TLV_TYPE_CHANNEL_SELECTION_RESPONSE)} indicates successful channel selection : response code {tlv_value[6]}")
-        return True
-    else:
-        print_error(f"{get_tlv_type_name(TLV_TYPE_CHANNEL_SELECTION_RESPONSE)} does not indicate successful channel selection. Expected response code: 0x00, actual response code: {tlv_value[6] if tlv_value is not None else 'N/A'}")
-        return False
-
-
 def verify_supported_services_tlv():
     message_presence = False
     tlv_presence = False
@@ -645,7 +603,7 @@ def verify_cmdu_presence(expected_cmdu, agent_or_controller="", expected_count =
         expected_cmdu_key = f"{expected_cmdu}_controller"
 
     else:
-        expected_cmdu_key = f"{expected_cmdu}"
+        expected_cmdu_key = expected_cmdu
 
     global message_details
     message_details = message_count_details.setdefault(
