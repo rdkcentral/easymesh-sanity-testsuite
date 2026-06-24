@@ -46,14 +46,14 @@ from UI_Automation.conftest import (
     MSG_TYPE_AP_TOPOLOGY_RESPONSE,
 )
 
-# Documentation: [test_ssid_update_capture_analysis.py](Centralized_Test_Cases.md#test_ssid_update_capture_analysispy)
+# Documentation: [test_ssid_update_capture_analysis.py](PacketAnalyzer_Test_Documentation.md#test_ssid_update_capture_analysispy)
 
 def get_controller_agent_mac(ssh_manager):
     ctrl_mac = get_interface_mac_address("controller", "eth0_virt_peer", ssh_manager)
     ext_mac = get_interface_mac_address("ext1", "eth1_virt_peer", ssh_manager)
     return ctrl_mac, ext_mac
 
-# Documentation: [TC-PA-01](Centralized_Test_Cases.md#tc-pa-01)
+# Documentation: [TC-PA-01](PacketAnalyzer_Test_Documentation.md#tc-pa-01)
 def test_capture_and_analyze_packets_with_ssid_update(page, paths, request, ssh_manager, config):
     print_step("Entering test_capture_and_analyze_packets_with_ssid_update test")    
     # Initialize controller and agent MAC addresses
