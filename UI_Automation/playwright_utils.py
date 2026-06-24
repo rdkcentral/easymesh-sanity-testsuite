@@ -115,9 +115,10 @@ def select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, ste
         pytest.fail(f"Failed to select the {iface_name}!")
     print_success(f"{iface_name} selected successfully for Wi-Fi reset operation.")
 
-def configure_custom_wifi_values(page, ssid_map, step):
+def configure_custom_wifi_values(page, config, step):
     # Fill the custom SSID and password values to be configured after WiFi reset.
     print_step(f"Step {step}: Set the custom SSID and Password to be applied after the Wi-Fi reset for each haul type.")
+    ssid_map = config["database"]["network_ssid_map"]
     for haul_id, cfg in ssid_map.items():
         custom_ssid = cfg["custom_ssid"]
         custom_pass = cfg["custom_pass"]

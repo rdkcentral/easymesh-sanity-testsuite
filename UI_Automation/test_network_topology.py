@@ -23,9 +23,9 @@ from utils import print_step, print_error, print_success
 from skimage.metrics import structural_similarity as ssim
 import cv2
 
-# Documentation: [test_network_topology.py](Centralized_Test_Cases.md#test_network_topologypy)
+# Documentation: [test_network_topology.py](Sanity_Tests_Documentation.md#test_network_topologypy)
 
-# Documentation: [TC-TOPO-01](Centralized_Test_Cases.md#tc-topo-01-test_validate_ui_topology)
+# Documentation: [TC-TOPO-01](Sanity_Tests_Documentation.md#tc-topo-01-test_validate_ui_topology)
 def test_validate_ui_topology(config, page, request, ssh, paths):
     print_step("Entering Test1: test_validate_ui_topology")
     # Test prerequisite: Ensure at least two extenders are connected, before running the network topology test scenario.
@@ -42,9 +42,9 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
     print_step("Step 3: Collect backend topology data to validate it against the UI topology data")
     device_ssid_map, device_count = utils.fetch_tr181_topology_verification_params(ssh)
     if device_ssid_map:
-        print_success(f"TR-181 Device → SSID map fetched successfully: {device_ssid_map}")
+        print_success(f"TR-181 Device -> SSID map fetched successfully: {device_ssid_map}")
     else:
-        pytest.fail("Failed to fetch TR-181 Device → SSID map from backend")
+        pytest.fail("Failed to fetch TR-181 Device -> SSID map from backend")
     print_step("Step 4: Validate that the number of devices in the DML matches the number of extenders configured in the testbed")
     #Device count should match the number of extenders configured in the testbed
     num_of_extenders = len(config.get("extenders", {}))
@@ -143,7 +143,7 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
         print_success("Current topology matches with Star network topology")
     print_step("Exiting Test1: test_validate_ui_topology")
 
-# Documentation: [TC-TOPO-02](Centralized_Test_Cases.md#tc-topo-02-test_determine_topology_type_from_brctl_command)
+# Documentation: [TC-TOPO-02](Sanity_Tests_Documentation.md#tc-topo-02-test_determine_topology_type_from_brctl_command)
 def test_determine_topology_type_from_brctl_command(config, request, ssh):
     print_step("Entering Test2: test_determine_topology_type_from_brctl_command")
     # Test prerequisite: Ensure at least two extenders are connected, before running the network topology test scenario.

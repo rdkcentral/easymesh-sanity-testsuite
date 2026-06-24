@@ -365,11 +365,13 @@ Test Type:
 ### TC-EM-04: test_rdkbcli_wifi_reset_with_default_values
 
 Preconditions:
-- System Settings page reachable in RDKB-CLI.
-- reset_json_file and DB table mapping configured.
+- RDKB CLI is accessible for the configured controller.
+- System Settings page is available and loaded.
+- Controller interface from `config["system"]["wifi_reset_interface"]` exists and has a valid MAC.
+- Test sets non-default SSID/passphrase values before performing reset to validate the reset functionality restores defaults.
 
 Objective:
-- Trigger Wi-Fi reset and verify default SSID/passphrase restored for each haul type.
+- Validate that Wi-Fi reset with default SSID/passphrase values is accepted via UI, applied after reboot, and reflected in DB/interface-level verification without creating crash dumps. Verify that pre-reset non-default values are properly reset to defaults.
 
 Test Type:
 - Positive
@@ -377,19 +379,31 @@ Test Type:
 #### Test Procedure and Expected Results
 | Step Number | Controller | Extender | LAN Client | Wi-Fi Client | Expected Results | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Navigate to System Settings; fetch controller interface MAC via SSH ifconfig <wifi_reset_interface>; select dropdown value <mac> (<iface>) in #almac-select. |  |  |  | Correct AL MAC target is selected for reset operation. | UI logs and interface-MAC fetch output. |
-| 2 | Register dialog handler and trigger reset: click #reset-btn; accept confirmation/success dialogs. |  |  |  | Wi-Fi reset flow is accepted and completed by UI. | UI action logs. |
-| 3 | For each haul type run SQL query on controller DB: SELECT SSID, PassPhrase FROM <ssid_table> WHERE ID LIKE '%<HaulType>%OneWifiMesh%'; compare values to config default_ssid/default_pass. |  |  |  | Default SSID/passphrase values are restored for all haul types. | SQL output and comparison logs. |
-| 4 | Execute: ls /tmp/*dmp* 2>/dev/null on controller. | Execute same core-scan command on each extender. |  |  | No reset-triggered dump/core files are observed. | Core validation command output. |
+| 1 | Update fronthaul SSID to non-default value (TDKB_New_SSID_03) using `update_verify_required_field_from_rdkbcli` helper. |  |  |  | Non-default SSID update request is submitted from UI. | UI action logs and screenshot. |
+| 2 | Verify SSID update propagation on controller and all extenders using `verify_ssid_update_in_controller_and_agent`. | Verify SSID update on each enabled extender. |  |  | Updated SSID (TDKB_New_SSID_03) is present on controller and all enabled extenders. | SSH command outputs and pass/fail logs. |
+| 3 | Update fronthaul passphrase to non-default value (TestTDKB@1234) using `update_verify_required_field_from_rdkbcli` helper. |  |  |  | Non-default passphrase update request is submitted from UI. | UI action logs and screenshot. |
+| 4 | Verify passphrase update by checking controller DB using `verify_password_update_in_controller_db` | Extender validation is indirect via controller DB consistency; no per-extender passphrase query is performed. |  |  | Controller DB reflects the updated passphrase; extenders are expected to sync via mesh. | DB query output and validation logs. |
+| 5 | Wait for 20 seconds to ensure non-default changes are fully applied before proceeding with reset. |  |  |  | Sufficient delay is provided for system stability before reset operation. | Delay log. |
+| 6 | Open RDKB CLI URL using Playwright helper `navigate_to_rdkbcli_page`. |  |  |  | RDKB CLI opens successfully. | Playwright step log. |
+| 7 | Navigate to **System Settings** using navigation helper `navigate_to_required_rdkbcli_page`. |  |  |  | System Settings page is loaded successfully. | Playwright navigation log. |
+| 8 | Read configured reset interface name (`wifi_reset_interface`) and retrieve its MAC from controller (`get_interface_mac_address`). |  |  |  | Interface MAC (AL MAC candidate) is fetched successfully. | SSH command output and pass log. |
+| 9 | Select the retrieved AL MAC in Wi-Fi reset dropdown (`select_wifi_reset_al_mac`). |  |  |  | Correct target interface is selected in UI. | UI selection log/screenshot (on failure). |
+| 10 | Trigger and confirm Wi-Fi reset from UI (`perform_wifi_reset`). |  |  |  | Reset workflow is accepted by UI confirmation flow. | UI dialog handling logs. |
+| 11 | Reboot devices and wait for recovery (`reboot_device_after_wifi_reset`). | Agents reboot and reconnect as part of mesh recovery. |  |  | Mesh comes back online after reset. | Reboot/reconnect logs. |
+| 12 | Verify OneWifiMesh DB values against **default** expected set (`verify_wifi_db_values(..., expected_type="default")`). |  |  |  | DB values have been reset and now reflect default SSID/passphrase values (not the pre-reset non-default values). | SQL/query validation logs. |
+| 13 | Verify interface-level SSID values using `iw dev` against **default** expected set (`verify_iw_dev_interface_value(..., expected_type="default")`). | Validate corresponding extender-side interface values through helper flow. |  |  | Runtime interface state on controller and extenders matches expected default values. | SSH output + comparison logs. |
+| 14 | Check for core/crash dump generation after reset (`verify_core_dump_generated`). | Same crash-dump validation for enabled extenders. |  |  | No unexpected dump/core files are generated due to reset flow. | Core scan logs and pass/fail summary. |
 
 ### TC-EM-05: test_rdkbcli_wifi_reset_with_custom_values
 
 Preconditions:
-- System Settings page reachable.
-- Custom SSID/passphrase values defined per haul type in config mapping.
+- RDKB CLI is accessible for the configured controller.
+- System Settings page is available and loaded.
+- Controller interface from `config["system"]["wifi_reset_interface"]` exists and has a valid MAC.
+- Custom Wi-Fi values are available in configuration for reset operation.
 
 Objective:
-- Trigger Wi-Fi reset with custom values and verify DB reflects custom values.
+- Validate that Wi-Fi reset with custom SSID/passphrase values is accepted via UI, applied after reboot, and reflected in DB/interface-level verification without creating crash dumps.
 
 Test Type:
 - Positive
@@ -397,10 +411,16 @@ Test Type:
 #### Test Procedure and Expected Results
 | Step Number | Controller | Extender | LAN Client | Wi-Fi Client | Expected Results | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Navigate to System Settings; fetch/select AL MAC in #almac-select; for each haul type check #haul-<haul_id> and fill #ssid-<haul_id>, #password-<haul_id> with custom values. |  |  |  | Custom reset inputs are populated successfully. | UI state logs and screenshot. |
-| 2 | Register dialog handler and trigger reset: click #reset-btn; accept confirmation/success dialogs. |  |  |  | Wi-Fi reset is accepted with custom inputs. | UI logs. |
-| 3 | For each haul type run SQL query: SELECT SSID, PassPhrase FROM <ssid_table> WHERE ID LIKE '%<HaulType>%OneWifiMesh%'; compare to custom_ssid/custom_pass from config. |  |  |  | Custom SSID/passphrase values are applied for all haul types. | SQL output and comparison logs. |
-| 4 | Execute: ls /tmp/*dmp* 2>/dev/null on controller. | Execute same core-scan command on each extender. |  |  | No reset-triggered dump/core files are observed. | Core validation command output. |
+| 1 | Open RDKB CLI URL and navigate to **System Settings** using Playwright navigation helpers. |  |  |  | System Settings view opens successfully. | Playwright step log. |
+| 2 | Read configured reset interface name (`wifi_reset_interface`) and retrieve its MAC from controller (`get_interface_mac_address`). |  |  |  | Interface MAC (AL MAC candidate) is fetched successfully. | SSH command output and pass log. |
+| 3 | Select the retrieved AL MAC in Wi-Fi reset dropdown (`select_wifi_reset_al_mac`). |  |  |  | Correct target interface is selected in UI. | UI selection log/screenshot (on failure). |
+| 4 | Fill custom SSID/passphrase values in reset form (`configure_custom_wifi_values`). |  |  |  | Custom input fields are populated for reset request. | UI action log. |
+| 5 | Capture pre-reset screenshot: `rdkbcli_wifi_reset_custom_values.png`. |  |  |  | Evidence of custom values before reset is saved. | Screenshot artifact. |
+| 6 | Trigger and confirm Wi-Fi reset from UI (`perform_wifi_reset`). |  |  |  | Reset workflow is accepted by UI confirmation flow. | UI dialog handling logs. |
+| 7 | Reboot devices and wait for recovery (`reboot_device_after_wifi_reset`). | Agents reboot and reconnect as part of mesh recovery. |  |  | Mesh comes back online after reset. | Reboot/reconnect logs. |
+| 8 | Verify OneWifiMesh DB values against **custom** expected set (`verify_wifi_db_values(..., expected_type="custom")`). |  |  |  | DB reflects configured custom SSID/passphrase values. | SQL/query validation logs. |
+| 9 | Verify interface-level SSID values using `iw dev` against **custom** expected set (`verify_iw_dev_interface_value(..., expected_type="custom")`). | Validate corresponding extender-side interface values through helper flow. |  |  | Runtime interface state matches expected custom values. | SSH output + comparison logs. |
+| 10 | Check for core/crash dump generation after reset (`verify_core_dump_generated`). | Same crash-dump validation for enabled extenders. |  |  | No unexpected dump/core files are generated due to reset flow. | Core scan logs and pass/fail summary. |
 
 ---
 
