@@ -67,7 +67,6 @@ def _decode_escape_sequences(text):
         .replace("\\t", "\t")
     )
 
-
 def _normalize_report_text(text, passes=3):
     normalized = text if isinstance(text, str) else str(text)
     for _ in range(passes):
@@ -661,26 +660,34 @@ def global_setup(config, test_run_dirs):
 def pytest_html_results_summary(prefix, summary, postfix):
     if not GLOBAL_SETUP_LOGS:
         return
-
     formatted_logs = "\n".join(_normalize_report_text(line) for line in GLOBAL_SETUP_LOGS)
-
     if py_html is not None:
+        details = py_html.details()
+        details.append(
+            py_html.summary("Global Setup Logs", style="cursor:pointer;font-size:16px;font-weight:bold;color:#0055aa;")
+        )
+        details.append(
+            py_html.div(formatted_logs, style="white-space: pre-wrap;font-family: monospace;color: black;tab-size: 4;")
+        )
         summary.extend(
             [
                 py_html.h2("Global Setup"),
-                py_html.div(
-                    formatted_logs,
-                    style="white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;",
-                ),
+                details,
             ]
         )
     else:
-        # Fallback for environments where py.xml is unavailable.
         html_content = (
             "<h2>Global Setup</h2>"
-            "<div style='white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;'>"
+            "<details>"
+            "<summary style='cursor:pointer;font-size:16px;"
+            "font-weight:bold;color:#0055aa;'>"
+            "Global Setup Logs"
+            "</summary>"
+            "<div style='white-space: pre-wrap; "
+            "font-family: monospace; color: black; tab-size: 4;'>"
             f"{escape(formatted_logs)}"
             "</div>"
+            "</details>"
         )
         summary.append(html_content)
 
@@ -688,17 +695,15 @@ def pytest_html_results_summary(prefix, summary, postfix):
 def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
-
     if report.when == "call":
         errors = getattr(item, "error_logs", [])
         if errors:
             report.outcome = "failed"
             report.longrepr = "Error logs found:\n" + "\n".join(errors)
-        #Attach report to item (so fixture can read it)
+        # Attach report to item (so fixtures can read it)
         setattr(item, "rep_call", report)
-
         extra = getattr(report, "extra", [])
-        if report.failed:
+        if errors or report.failed:
             message = f'<span style="color:red; font-weight:bold;">FAIL</span>'
         elif report.passed:
             message = '<span style="color:green; font-weight:bold;">PASS</span>'
@@ -706,7 +711,6 @@ def pytest_runtest_makereport(item, call):
             message = '<span style="color:orange; font-weight:bold;">SKIPPED</span>'
         else:
             message = '<span>UNKNOWN</span>'
-
         extra.append(pytest_html.extras.html(message))
         report.extra = extra
 _ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
@@ -714,22 +718,40 @@ _ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 def _strip_ansi(text):
     return _ANSI_ESCAPE.sub('', text)
 
+def _get_log_style(line):
+    stripped = line.lstrip()
+    if stripped.startswith("[INFO]"):
+        return "color:#555;font-weight:bold;"
+    elif (
+        "Entering Test" in stripped
+        or "Exiting Test" in stripped
+        or "TEST START" in stripped
+        or "TEST END" in stripped
+    ):
+        return "color:#0055aa;font-weight:bold;"
+    elif (
+        stripped.startswith("Step")
+        or stripped.startswith("STEP")
+    ):
+        return "color:#8a5a00;font-weight:bold;"
+    elif stripped.startswith("PASS:"):
+        return "color:green;font-weight:bold;"
+    elif stripped.startswith("FAIL:"):
+        return "color:red;font-weight:bold;"
+    else:
+        return "color:black;"
+
 def pytest_html_results_table_html(report, data):
     if report.when not in ("call", "setup", "teardown"):
         return
-
     new_data = []
-
     # Add failure traceback for call phase
     if report.failed and report.when == "call":
         if hasattr(report, "longrepr"):
             longrepr_text = _normalize_report_text(report.longrepr)
             if py_html is not None:
                 new_data.append(
-                    py_html.div(
-                        longrepr_text,
-                        style="white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;",
-                    )
+                    py_html.div(longrepr_text, style="white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;",)
                 )
             else:
                 longrepr = escape(longrepr_text)
@@ -738,56 +760,35 @@ def pytest_html_results_table_html(report, data):
                     f"{longrepr}"
                     "</div>"
                 )
-
     # Add formatted logs from captured stdout
     stdout = getattr(report, "capstdout", "") or ""
     if stdout.strip():
         lines = _normalize_report_text(stdout).splitlines()
         if py_html is not None:
-            container = py_html.div(
-                style="white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;"
-            )
+            container = py_html.div(style="white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;")
             for idx, line in enumerate(lines):
                 # Some tests print HTML span tags; remove them so we control coloring consistently.
                 plain_line = re.sub(r"</?span[^>]*>", "", line, flags=re.IGNORECASE)
-                stripped = plain_line.lstrip()
-                if stripped.startswith("PASS:"):
-                    style = "color:green; font-weight:bold;"
-                elif stripped.startswith("FAIL:"):
-                    style = "color:red; font-weight:bold;"
-                else:
-                    style = "color:black;"
-
-                container.append(py_html.span(plain_line, style=style))
+                container.append(
+                    py_html.span(plain_line,style=_get_log_style(plain_line),)
+                )
                 if idx < len(lines) - 1:
                     container.append(py_html.br())
-
             new_data.append(container)
         else:
             formatted_lines = []
             for line in lines:
                 plain_line = re.sub(r"</?span[^>]*>", "", line, flags=re.IGNORECASE)
                 escaped_line = escape(plain_line)
-                stripped = plain_line.lstrip()
-                if stripped.startswith("PASS:"):
-                    formatted_lines.append(
-                        f'<span style="color:green; font-weight:bold;">{escaped_line}</span>'
-                    )
-                elif stripped.startswith("FAIL:"):
-                    formatted_lines.append(
-                        f'<span style="color:red; font-weight:bold;">{escaped_line}</span>'
-                    )
-                else:
-                    formatted_lines.append(
-                        f'<span style="color:black;">{escaped_line}</span>'
-                    )
-            html = "\n".join(formatted_lines)
+                formatted_lines.append(
+                    f'<span style="{_get_log_style(plain_line)}">{escaped_line}</span>'
+                )
+            html = "<br>".join(formatted_lines)
             new_data.append(
                 "<div style='white-space: pre-wrap; font-family: monospace; color: black; tab-size: 4;'>"
                 f"{html}"
                 "</div>"
             )
-
     if new_data:
         data.clear()
         data.extend(new_data)
