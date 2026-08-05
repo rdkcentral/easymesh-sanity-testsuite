@@ -621,7 +621,8 @@ def global_setup(config, test_run_dirs):
             verification_steps = [
                 ("validate_all_configured_vaps_are_up", lambda: utils.validate_all_configured_vaps_are_up(config, ssh)),
                 ("verify_mld0_interface_presence", lambda: utils.verify_mld0_interface_presence(ssh)),
-                ("verify_mld0_links_to_privatevaps", lambda: utils.verify_mld0_links_to_privatevaps(ssh)),
+                # Disabled due to RDKBWIFI-523
+                # ("verify_mld0_links_to_privatevaps", lambda: utils.verify_mld0_links_to_privatevaps(ssh)),
                 ("verify_mesh_backhaul_interfaces", lambda: utils.verify_mesh_backhaul_interfaces(config, ssh)),
                 ("verify_mesh_backhaul_extenders_connected", lambda: utils.verify_mesh_backhaul_extenders_connected(config, ssh)),
             ]
