@@ -17,6 +17,7 @@
 
 import re
 import time
+import shlex
 from playwright.sync_api import expect, sync_playwright, TimeoutError as PlaywrightTimeoutError
 import pytest
 import json
@@ -64,7 +65,8 @@ def verify_core_dump_generated(request, ssh):
 
 def get_client_wifi_intf(client_ip, client_user, client_pass, ssh):
     # Fetch WiFi interface details of client device
-    result = ssh.run_client(client_ip, client_user, client_pass, "nmcli -t -f DEVICE,TYPE dev status | grep wifi | cut -d: -f1")
+    cmd = "nmcli -t -f DEVICE,TYPE device status | awk -F: '$2 == \"wifi\" {print $1; exit}'"
+    result = ssh.run_client(client_ip, client_user, client_pass, cmd)
     wifi_iface = result.strip()
     if not wifi_iface:
        pytest.fail("WiFi interface not found on the device")
@@ -687,41 +689,73 @@ def verify_password_update_in_controller_db(config, request, ssh, new_pass, step
             return True
 
 def perform_wifi_scan_and_extract_bssid(client_name, wifi_client, fronthaul_ssid, request, ssh, step):
-    # Execute WiFi scan on the client and filter results for the target SSID
+    # Execute WiFi scan on the client and extract visible BSSIDs for the target SSID.
     print_step(f"Step {step}: Perform WiFi Scan from {client_name} to discover available BSSIDs for SSID : {fronthaul_ssid}")
-    # Before performing a Wi-Fi scan, it's best to disconnect the Wi-Fi interface if it is currently connected to any network to avoid scan issues.
-    scan_cmd = f"nmcli -t -f BSSID,SSID device wifi list | grep {fronthaul_ssid}"
     print_step(f"Performing Wi-Fi scan from {client_name}")
     client_ip = wifi_client["ip"]
     client_user = wifi_client["user"]
     client_pass = wifi_client["pass"]
-    client_scan = get_wifi_scan_result(client_ip, client_user, client_pass, fronthaul_ssid, ssh, scan_cmd)
-    if client_scan:
-        print_success("WiFi scan completed successfully.")
-    else:
-        print_error(request, "WiFi scan returned no results.")
-        return []
-    # Process scan results to extract valid BSSIDs
-    client_scan_lines = []
-    for line in client_scan.splitlines():
-        line = line.replace("\\:", ":")
-        if fronthaul_ssid in line and re.match(r"([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", line):
-            client_scan_lines.append(line)
-    # Fail the test if no valid BSSIDs were found after parsing
-    if client_scan_lines:
-        print_success(f"Valid BSSIDs found in scan: {client_scan_lines}")
-    else:
-        print_error(request, f"No {fronthaul_ssid} networks found on client")
-        return []
-    # Parse visible BSSIDs
-    visible_bssids = []
-    for line in client_scan_lines:
-        bssid = line.split(":")[0] + ":" + ":".join(line.split(":")[1:6])
-        visible_bssids.append(bssid.lower())
-    print(f"Visible BSSIDs on {client_name}: {visible_bssids}")
-    return visible_bssids
 
-def connect_client_to_target_bssid(client_name, wifi_client, fronthaul_ssid, fronthaul_password, bssids, visible_bssids, request, ssh, device, step):
+    # Identify Wi-Fi interface explicitly so scan/rescan use a deterministic interface.
+    try:
+        client_wifi_intf = get_client_wifi_intf(client_ip, client_user, client_pass, ssh)
+    except Exception:
+        print_error(request, f"{client_name}: Wi-Fi interface was not found")
+        return [], None
+
+    # Disconnect first so nmcli does a clean scan and doesn't bias cached connected profile info.
+    check_cmd = f"nmcli -t -f DEVICE,STATE device status | grep -E '^{client_wifi_intf}:(connected|connecting)'"
+    check_output = ssh.run_client(client_ip, client_user, client_pass, check_cmd)
+    if check_output.strip():
+        disconnect_cmd = f"sudo -S nmcli device disconnect {shlex.quote(client_wifi_intf)}"
+        ssh.run_client(client_ip, client_user, client_pass, disconnect_cmd, sudo_password=client_pass)
+
+    scan_cmd = "nmcli -t --escape no -f BSSID,SSID device wifi list"
+    visible_bssids = []
+    last_seen_ssids = []
+    max_attempts = 5
+    for attempt in range(1, max_attempts + 1):
+        # Force a fresh scan before listing results to avoid stale nmcli cache.
+        rescan_cmd = f"sudo -S nmcli device wifi rescan ifname {shlex.quote(client_wifi_intf)}"
+        ssh.run_client(client_ip, client_user, client_pass, rescan_cmd, sudo_password=client_pass)
+        time.sleep(5)
+
+        # Read BSSID/SSID using stable machine-friendly output.
+        scan_output = ssh.run_client(client_ip, client_user, client_pass, scan_cmd)
+        if not scan_output or not scan_output.strip():
+            continue
+
+        visible_bssids = []
+        seen_ssids = []
+        for line in scan_output.splitlines():
+            row = re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]", "", line).strip().replace("\\:", ":")
+            if len(row) > 18 and row[17] == ":":
+                scanned_bssid = row[:17]
+                scanned_ssid = row[18:]
+                if re.fullmatch(r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", scanned_bssid):
+                    if scanned_ssid:
+                        seen_ssids.append(scanned_ssid)
+                    if scanned_ssid == fronthaul_ssid:
+                        visible_bssids.append(scanned_bssid.lower())
+
+        last_seen_ssids = sorted(set(seen_ssids))[:15]
+        if visible_bssids:
+            break
+        print(f"{client_name}: scan attempt {attempt}/{max_attempts} did not find SSID '{fronthaul_ssid}'.")
+
+    if not visible_bssids:
+        print_error(
+            request,
+            f"No {fronthaul_ssid} networks found on client. "
+            f"Recently seen SSIDs: {last_seen_ssids}"
+        )
+        return [], client_wifi_intf
+
+    print_success(f"Valid BSSIDs found in scan: {visible_bssids}")
+    print(f"Visible BSSIDs on {client_name}: {visible_bssids}")
+    return visible_bssids, client_wifi_intf
+
+def connect_client_to_target_bssid(client_name, wifi_client, fronthaul_ssid, fronthaul_password, bssids, visible_bssids, client_wifi_intf, request, ssh, device, step):
     # Select the first AP BSSID that is currently visible to the client
     print_step(f"Step {step}: Select the {device} BSSID that is currently visible")
     target_bssid = next((mac for mac in bssids if mac in visible_bssids), None)
@@ -729,17 +763,25 @@ def connect_client_to_target_bssid(client_name, wifi_client, fronthaul_ssid, fro
         print(f"Selected BSSID for {client_name} connection: {target_bssid}")
         print_success(f"Selected target BSSID: {target_bssid}")
     else:
-        print_error(request, f"No fronthaul {device} BSSIDs are visible on client for SSID {fronthaul_ssid}")
-        return False
+        print(
+            f"No {device} BSSID matched the scan. Expected: {bssids}; "
+            f"visible: {visible_bssids}"
+        )
+        target_bssid = next(iter(visible_bssids), None)
+        if not target_bssid:
+            print_error(request, f"No fronthaul {device} BSSIDs are visible on client for SSID {fronthaul_ssid}")
+            return False
     target_bssid = target_bssid.upper()
     # Connect the client to the selected fronthaul BSSID
     print_step(f"Step {step+1}: Connect the client to BSSID :{target_bssid} via nmcli")
     client_ip = wifi_client["ip"]
     client_user = wifi_client["user"]
     client_pass = wifi_client["pass"]
-    # Fetch wireless interface of client
-    client_wifi_intf = get_client_wifi_intf(client_ip, client_user, client_pass, ssh)
-    connect_cmd = f"sudo -S nmcli device wifi connect '{fronthaul_ssid}' password '{fronthaul_password}' bssid {target_bssid} ifname {client_wifi_intf}"
+    connect_cmd = (
+        f"sudo -S nmcli device wifi connect {shlex.quote(fronthaul_ssid)} "
+        f"password {shlex.quote(fronthaul_password)} bssid {target_bssid} "
+        f"ifname {shlex.quote(client_wifi_intf)}"
+    )
     # Execute the command on the client device via SSH
     client_connect_out = ssh.run_client(client_ip, client_user, client_pass, connect_cmd, sudo_password=client_pass)
     # Fail the test if the connection was not successful
@@ -771,10 +813,10 @@ def validate_fronthaul_client_connectivity(config, request, ssh, step):
         for client_name, wifi_client in ssh.enabled_wifi_clients.items():
             # Perform WiFi scan from each Wi-Fi client and extract target BSSID for client connection
             print(f"\nVerify {client_name} connectivity with the {device}")
-            visible_bssids = perform_wifi_scan_and_extract_bssid(client_name, wifi_client, fronthaul_ssid, request, ssh, step+2)
+            visible_bssids, client_wifi_intf = perform_wifi_scan_and_extract_bssid(client_name, wifi_client, fronthaul_ssid, request, ssh, step+2)
             if not visible_bssids:
                 continue
-            connect_client_to_target_bssid(client_name, wifi_client, fronthaul_ssid, fronthaul_password, bssids, visible_bssids, request, ssh, device, step+3)
+            connect_client_to_target_bssid(client_name, wifi_client, fronthaul_ssid, fronthaul_password, bssids, visible_bssids, client_wifi_intf, request, ssh, device, step+3)
 
 def verify_iw_dev_interface_value(config, ssh, request, expected_type, step):
     # Verify SSID values for each interface using iw dev against expected configuration
