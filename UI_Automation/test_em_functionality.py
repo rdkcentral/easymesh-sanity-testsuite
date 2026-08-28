@@ -32,6 +32,7 @@ def test_rdkbcli_update_verify_ssid(config, page, request, ssh, paths):
     playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "ssid", new_ssid, 'Fronthaul', 5000)
     if not utils.verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, 6):
         pytest.fail(f"SSID update did not propagate to all devices. Expected: {new_ssid}")
+    time.sleep(30)
     #revert the SSID back to default value
     print_step("Step 8: Revert the SSID value back to default in RDKB CLI and verify the update on devices")
     default_ssid = config["database"]["network_ssid_map"]["Fronthaul"]["default_ssid"]
@@ -47,6 +48,7 @@ def test_rdkbcli_update_verify_password(config, page, request, ssh, paths):
     playwright_utils.update_verify_required_field_from_rdkbcli(config, page, request, paths, 1, "passphrase", new_pass, 'Fronthaul', 15000)
     if not utils.verify_password_update_in_controller_db(config, request, ssh, new_pass, 6):
         pytest.fail(f"Passphrase update verification failed on controller DB. Expected: {new_pass}")
+    time.sleep(30)
     #revert the Passphrase back to default value
     print_step("Step 8: Revert the Passphrase value back to default in RDKB CLI and verify the update on device")
     default_pass = config["database"]["network_ssid_map"]["Fronthaul"]["default_pass"]
