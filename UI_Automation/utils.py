@@ -641,7 +641,8 @@ def verify_ssid_update_in_controller_and_agent(page, request, ssh, new_ssid, ste
             if value != "":
                 print(f"Updated SSID from {device} device: {value}")
             else:
-                print_error(request, f"Failed to fetch SSID from {device} device on attempt {attempt + 1}")
+                # Transient empty reads are expected during propagation; only fail at terminal retry.
+                print(f"WARN: Failed to fetch SSID from {device} device on attempt {attempt + 1}")
             results[device] = value
         if all(v == new_ssid for v in results.values()):
             print_success(f"SSID successfully updated on all devices. Expected: {new_ssid}, Results: {results}")
