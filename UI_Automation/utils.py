@@ -451,7 +451,7 @@ def validate_all_configured_vaps_are_up(config, ssh):
         except Exception as e:
             errors.append(f"Unable to fetch configured VAPs on {device}: {e}")
             continue
-        detected_ssids = [line.strip().removeprefix("ssid ").strip() for line in out.splitlines() if line.strip()]
+        detected_ssids = [line.strip()[len("ssid "):].strip() for line in out.splitlines() if line.strip().startswith("ssid ")]
         missing = {
             profile: ssid for profile, ssid in expected_ssids.items()
             if ssid not in detected_ssids
