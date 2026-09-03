@@ -614,42 +614,47 @@ def global_setup(config, test_run_dirs):
         record_global_setup_log("\n[GLOBAL SETUP] Connecting to devices...", print_to_stdout=False)
         ssh.connect()
         record_global_setup_log("[GLOBAL SETUP] Verifying configured VAPs and mesh formation...", print_to_stdout=False)        
-        # Capture output from utility functions
-        captured_output = io.StringIO()
         verification_errors = []
-        with contextlib.redirect_stdout(captured_output):
-            verification_steps = [
-                ("validate_all_configured_vaps_are_up", lambda: utils.validate_all_configured_vaps_are_up(config, ssh)),
-                ("verify_mld0_interface_presence", lambda: utils.verify_mld0_interface_presence(ssh)),
-                # Disabled due to RDKBWIFI-523
-                # ("verify_mld0_links_to_privatevaps", lambda: utils.verify_mld0_links_to_privatevaps(ssh)),
-                ("verify_mesh_backhaul_interfaces", lambda: utils.verify_mesh_backhaul_interfaces(config, ssh)),
-                ("verify_mesh_backhaul_extenders_connected", lambda: utils.verify_mesh_backhaul_extenders_connected(config, ssh)),
-            ]
-            for step_name, step_func in verification_steps:
-                try:
+        verification_steps = [
+            ("validate_all_configured_vaps_are_up", lambda: utils.validate_all_configured_vaps_are_up(config, ssh)),
+            ("verify_mld0_interface_presence", lambda: utils.verify_mld0_interface_presence(ssh)),
+            # Disabled due to RDKBWIFI-523
+            # ("verify_mld0_links_to_privatevaps", lambda: utils.verify_mld0_links_to_privatevaps(ssh)),
+            ("verify_mesh_backhaul_interfaces", lambda: utils.verify_mesh_backhaul_interfaces(config, ssh)),
+            ("verify_mesh_backhaul_extenders_connected", lambda: utils.verify_mesh_backhaul_extenders_connected(config, ssh)),
+        ]
+        for step_name, step_func in verification_steps:
+            captured_output = io.StringIO()
+            step_errors = []
+            try:
+                with contextlib.redirect_stdout(captured_output):
                     step_errors = step_func() or []
-                    for error in step_errors:
-                        verification_errors.append(f"{step_name}: {error}")
-                except Exception as e:
-                    verification_errors.append(f"{step_name}: unexpected error: {e}")
-        
-        # Add captured output to global logs
-        output = captured_output.getvalue()
-        if output:
-            record_global_setup_log(output, print_to_stdout=False)
+            except Exception as e:
+                step_errors = [f"unexpected error: {e}"]
+
+            output = captured_output.getvalue()
+            if output:
+                record_global_setup_log(f"[{step_name}]\n{output}", print_to_stdout=False)
+            if step_errors:
+                print(f"\n[GLOBAL SETUP FAILED] {step_name}")
+                if output:
+                    print(output.rstrip())
+                for error in step_errors:
+                    message = f"{step_name}: {error}"
+                    print(f"FAIL: {message}")
+                    verification_errors.append(message)
 
         if verification_errors:
             for err in verification_errors:
                 record_global_setup_log(f"[GLOBAL SETUP FAILED] {err}", print_to_stdout=False)
             pytest.exit(
                 "\n[GLOBAL SETUP FAILED]\n" + "\n".join(verification_errors),
-                returncode=1
+                returncode=1,
             )
         
         record_global_setup_log("[GLOBAL SETUP] Setup successful", print_to_stdout=False)
     except Exception as e:
-        record_global_setup_log(f"[GLOBAL SETUP FAILED] {str(e)}", print_to_stdout=False)
+        record_global_setup_log(f"[GLOBAL SETUP FAILED] {str(e)}")
         pytest.exit(
             f"\n[GLOBAL SETUP FAILED]\n{str(e)}",
             returncode=1

@@ -441,22 +441,33 @@ def validate_all_configured_vaps_are_up(config, ssh):
     print("\n[Mesh Setup Verification 1/5] Verifying if all the configured VAPs are up...")    
     errors = []
     ssid_map = config["database"]["network_ssid_map"]
-    expected_ssids = [ssid_map[name]["default_ssid"] for name in ["Fronthaul", "IoT", "Backhaul"]]
+    expected_ssids = {
+        name: ssid_map[name]["default_ssid"]
+        for name in ["Fronthaul", "IoT", "Backhaul"]
+    }
     for device in ssh.device_list:
         try:
             out = run_command_fetch_output_from_device("iw dev | grep ssid", device, ssh)
         except Exception as e:
             errors.append(f"Unable to fetch configured VAPs on {device}: {e}")
             continue
-        missing = [
-            ssid for ssid in expected_ssids
-            if ssid not in out
-        ]
+        detected_ssids = [line.strip()[len("ssid "):].strip() for line in out.splitlines() if line.strip().startswith("ssid ")]
+        missing = {
+            profile: ssid for profile, ssid in expected_ssids.items()
+            if ssid not in detected_ssids
+        }
         if missing:
-            print(f"Fail: Missing VAPs on {device} device. Command Output: \n{out}\n")
-            errors.append(f"Missing VAPs on {device}: {missing}. Command Output: \n{out}")
+            expected_details = ", ".join(f"{profile}='{ssid}'" for profile, ssid in expected_ssids.items())
+            missing_details = ", ".join(f"{profile}='{ssid}'" for profile, ssid in missing.items())
+            detected_details = ", ".join(f"'{ssid}'" for ssid in detected_ssids) or "none"
+            message = (
+                f"VAP validation failed on {device}. Missing configured profile(s): {missing_details}. "
+                f"Expected default SSIDs: {expected_details}. Detected SSIDs: {detected_details}."
+            )
+            print(f"Fail: {message}\n")
+            errors.append(message)
         else:
-            print(f"Pass: All configured VAPs are up on the {device} device. Command Output: \n{out}\n")
+            print(f"Pass: All configured VAPs are up on the {device} device. Detected SSIDs: {', '.join(detected_ssids)}\n")
     return errors
 
 def verify_mld0_interface_presence(ssh):

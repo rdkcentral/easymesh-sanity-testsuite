@@ -105,16 +105,6 @@ def fetch_and_verify_home_network_input(page, request, field_name, locator_id, e
         take_screenshot(page, request, paths["screenshots"] / f"{field_name}_fetch_error.png")
         pytest.fail(f"Error while verifying {field_name}: {e}")
 
-def select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step):
-    # Select the correct AL MAC Address
-    print_step(f"Step {step}: Choose the correct AL MAC Address ({iface_name}) for reset operation from RDKB-CLI.")
-    page.wait_for_selector("#almac-select")
-    al_mac_address_wifi_reset = f"{al_mac_address} ({iface_name})"
-    result = page.select_option("#almac-select", value=al_mac_address_wifi_reset)
-    if not result:
-        pytest.fail(f"Failed to select the {iface_name}!")
-    print_success(f"{iface_name} selected successfully for Wi-Fi reset operation.")
-
 def configure_custom_wifi_values(page, config, step):
     # Fill the custom SSID and password values to be configured after WiFi reset.
     print_step(f"Step {step}: Set the custom SSID and Password to be applied after the Wi-Fi reset for each haul type.")

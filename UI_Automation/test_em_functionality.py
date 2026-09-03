@@ -210,26 +210,16 @@ def test_rdkbcli_wifi_reset_with_default_values(config, page, request, ssh, path
     playwright_utils.navigate_to_rdkbcli_page(config, page, 15)
     # Navigate to System Settings page
     playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 16, paths)
-    # Retrieve the Wi-Fi reset interface mac address from controller.
-    iface_name = config["system"]["wifi_reset_interface"]
-    print_step(f"Step 17: Retrieve the {iface_name} interface MAC from the controller.")
-    al_mac_address = utils.get_interface_mac_address("controller", iface_name, ssh)
-    if al_mac_address:
-        print_success("AL MAC address retrieved successfully from controller device.")
-    else:
-        pytest.fail("Failed to retrieve AL MAC address from controller device.")
-    # Select the Wi-Fi reset interface from dropdown in UI.
-    playwright_utils.select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step=18)
     # Confirm the pop-up to trigger the Wi-Fi reset.
-    playwright_utils.perform_wifi_reset(page, step=19)
+    playwright_utils.perform_wifi_reset(page, step=17)
     # Reboot the device after Wi-Fi reset and wait for the device to come back.
-    utils.reboot_device_after_wifi_reset(ssh, request, step=20)
+    utils.reboot_device_after_wifi_reset(ssh, request, step=18)
     # Verify that the OneWifiMesh DB values match the expected default values.
-    utils.verify_wifi_db_values(config, ssh, request, expected_type="default",step=21)
+    utils.verify_wifi_db_values(config, ssh, request, expected_type="default",step=19)
     # Verify SSID values for each interface using iw dev against the expected default values.
-    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="default", step=22)
+    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="default", step=20)
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
-    print_step("Step 23: Verify any core files generated in the devices after WiFi reset.")
+    print_step("Step 21: Verify any core files generated in the devices after WiFi reset.")
     utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test4: test_rdkbcli_wifi_reset_with_default_values")
 
@@ -240,30 +230,20 @@ def test_rdkbcli_wifi_reset_with_custom_values(config, page, request, ssh, paths
     playwright_utils.navigate_to_rdkbcli_page(config, page, 1)
     # Navigate to System Settings page
     playwright_utils.navigate_to_required_rdkbcli_page(page, request, "System Settings", 2, paths)
-    # Retrieve the Wi-Fi reset interface mac address from controller.
-    iface_name = config["system"]["wifi_reset_interface"]
-    print_step(f"Step 3: Retrieve the {iface_name} interface MAC from the controller.")
-    al_mac_address = utils.get_interface_mac_address("controller", iface_name, ssh)
-    if al_mac_address:
-        print_success("AL MAC address retrieved successfully from controller device.")
-    else:
-        pytest.fail("Failed to retrieve AL MAC address from controller device.")
-    # Select the Wi-Fi reset interface from dropdown in UI.
-    playwright_utils.select_wifi_reset_al_mac(al_mac_address, iface_name, page, request, ssh, step=4)
     # Configure the custom Wi-Fi ssid/password values.
-    playwright_utils.configure_custom_wifi_values(page, config, step=5)
+    playwright_utils.configure_custom_wifi_values(page, config, step=3)
     # Take screenshot after filling the custom values.
-    print_step("Step 6: Take screenshot of Custom SSID and passphrase input value in RDKB CLI page before reset")
+    print_step("Step 4: Take screenshot of Custom SSID and passphrase input value in RDKB CLI page before reset")
     playwright_utils.take_screenshot(page, request, paths["screenshots"] / "rdkbcli_wifi_reset_custom_values.png")
     # Confirm the pop-up to trigger the Wi-Fi reset.
-    playwright_utils.perform_wifi_reset(page, step=7)
+    playwright_utils.perform_wifi_reset(page, step=5)
     # Reboot the device after Wi-Fi reset and wait for the device to come back.
-    utils.reboot_device_after_wifi_reset(ssh, request, step=8)
+    utils.reboot_device_after_wifi_reset(ssh, request, step=6)
     # Verify that the OneWifiMesh DB values match the expected custom values.
-    utils.verify_wifi_db_values(config, ssh, request, expected_type="custom", step=9)
+    utils.verify_wifi_db_values(config, ssh, request, expected_type="custom", step=7)
     # Verify SSID values for each interface using iw dev against the expected custom values.
-    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="custom", step=10)
+    utils.verify_iw_dev_interface_value(config, ssh, request, expected_type="custom", step=8)
     # Confirm whether any crash occurred and if a core file was generated after the Wi-Fi reset.
-    print_step("Step 11: Verify any core files generated in the devices after WiFi reset.")
+    print_step("Step 9: Verify any core files generated in the devices after WiFi reset.")
     utils.verify_core_dump_generated(request, ssh)
     print_step("Exiting Test5: test_rdkbcli_wifi_reset_with_custom_values")
