@@ -108,7 +108,7 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
             if mld_mac and mld_mac not in tooltip_macs: 
                 print_error(request, f"MLD MAC {mld_mac} missing for SSID {ssid_name}")
             print_success(f"All BSSIDs verified for SSID '{ssid_name}'")
-    # Manually validated the network topology screenshot, as UI data may differ from the actual state
+    # Validate the network topology screenshot
     print_step("Step 7: Capture the network topology page screenshot.")
     # Close tooltip before screenshot
     page.evaluate("""
@@ -117,13 +117,14 @@ def test_validate_ui_topology(config, page, request, ssh, paths):
         if (tooltip) tooltip.remove();
     }
     """)
-    playwright_utils.take_screenshot(page, request, paths["screenshots"] / "network_topology.png")
-    
+    topology_svg = page.locator("#topology-visualization svg").first
+    topology_svg.wait_for(state="visible", timeout=10000)
+    topology_svg.screenshot(path=paths["screenshots"] / "network_topology.png")
+    print_success(f"Current topology screenshot saved as {paths['screenshots'] / 'network_topology.png'}")
     print_step("Step 8: Verify whether the current topology matches Star or Daisychain topology from RDKB-CLI.")
     print_step("Step 8a: Verify whether the current topology matches with Star topology.")
     img1 = cv2.imread(f"{paths['network_topology_screenshots']}/star_network_topology.png")
     img2 = cv2.imread(f"{paths['screenshots']}/network_topology.png")
-    #img2 = cv2.imread(f"{paths['screenshots']}/daisychain_network_topology.png")
     gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     score, diff = ssim(gray1, gray2, full=True)
