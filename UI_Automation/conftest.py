@@ -129,7 +129,7 @@ M2_TYPE = 0x05
 
 @pytest.fixture(scope="session", autouse=True)
 def test_run_dirs():
-    global screenshots_path, reports_path
+    global screenshots_path, reports_path, failure_logs_path
     #Read from environment (set by main.py)
     run_dir_env = os.environ.get("TEST_RUN_DIR")
     if run_dir_env:
@@ -140,15 +140,17 @@ def test_run_dirs():
         run_dir = BASE_DIR / f"TestRun_{timestamp}"
     screenshots_path = run_dir / "Screenshots"
     reports_path = run_dir / "Reports"
+    failure_logs_path = run_dir / "Failed_Logs"
     network_topology_screenshot_path = BASE_DIR / "Network_topology_screenshots"
     #Create all directories
-    for path in [screenshots_path, reports_path]:
+    for path in [screenshots_path, reports_path, failure_logs_path]:
         path.mkdir(parents=True, exist_ok=True)
     print(f"\n[INFO] Using Test Run Directory: {run_dir}\n")
     return {
         "run_dir": run_dir,
         "screenshots": screenshots_path,
-        "reports": reports_path,        
+        "reports": reports_path,
+        "logs": failure_logs_path,
         "network_topology_screenshots": network_topology_screenshot_path
     }
 
@@ -591,6 +593,59 @@ class SSHManager:
             except Exception as e:
                 print(f"[LOG ERROR] Failed processing {remote_path}: {e}")
 
+    def copy_agent_logs_to_controller(self, agent_paths, controller_dir="/tmp", target=None):
+        """
+        Copy logs from extender(s) → controller
+        :param agent_paths: list of file paths on agent
+        :param controller_dir: destination dir on controller
+        :param target: optional extender name (e.g., "ext1"), else all extenders
+        :return: dict mapping extender name -> staged directory on controller
+        """
+        if not self.controller or not self.extenders:
+            raise RuntimeError("SSH connections not established")
+        # Decide which extenders to process
+        if target:
+            ext_items = [(target, self.extenders.get(target))]
+            if ext_items[0][1] is None:
+                raise ValueError(f"Unknown extender: {target}")
+        else:
+            ext_items = self.extenders.items()
+        staged_dirs = {}
+        for idx, (name, agent_client) in enumerate(ext_items, start=1):
+            ext_cfg = self.config["extenders"][name]
+            # Create per-extender directory
+            ext_dir = f"{controller_dir}/Ext{idx}_logs"
+            staged_dirs[name] = ext_dir
+            self.controller.exec_command(f"mkdir -p {ext_dir}")
+            for remote_path in agent_paths:
+                filename = os.path.basename(remote_path)
+                dest_path = f"{ext_dir}/{filename}"
+                #dest_path = f"{controller_dir}/{name}_{filename}"  # avoid overwrite
+                try:
+                    # ---- Check file exists on agent ----
+                    stdin, stdout, stderr = agent_client.exec_command(
+                        f"test -f {remote_path} && echo EXISTS || echo MISSING"
+                    )
+                    result = stdout.read().decode().strip()
+                    if result != "EXISTS":
+                        print(f"[{name}] Missing: {remote_path}")
+                        continue
+                    # ---- Copy agent → controller ----
+                    scp_cmd = (
+                        f"scp -o StrictHostKeyChecking=no "
+                        f"{ext_cfg['user']}@{ext_cfg['ip']}:{remote_path} {dest_path}"
+                    )
+                    stdin, stdout, stderr = self.controller.exec_command(scp_cmd)
+                    exit_code = stdout.channel.recv_exit_status()
+                    if exit_code == 0:
+                        print(f"[{name} -> CTRL] {remote_path} -> {dest_path}")
+                    else:
+                        err = stderr.read().decode()
+                        print(f"[{name} ERROR] SCP failed: {err}")
+                except Exception as e:
+                    print(f"[{name} ERROR] Failed copying {remote_path}: {e}")
+            return staged_dirs
+    
     # ---------- Cleanup ----------
     def close(self):
         if self.controller:
@@ -603,6 +658,50 @@ def ssh(global_setup):
     # Reuse the session-level SSH manager from global setup to avoid duplicate setup execution and logs.
     yield global_setup
 
+@pytest.fixture(autouse=True)
+def collect_device_logs_on_failure(request, ssh):
+    """
+    Runs after each test.
+    If test fails:
+        - Creates a folder with test name + timestamp
+        - Copies predefined device logs into that folder
+    """
+    yield  # Run the test first
+    report = getattr(request.node, "rep_call", None)
+    if report and report.failed:
+        test_name = request.node.name
+        # Unique folder to avoid overwrite
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        test_dir = os.path.join(f"{failure_logs_path}", f"{test_name}_{timestamp}")
+        agent_test_dir = os.path.join(test_dir, "Agent_Logs")
+        os.makedirs(agent_test_dir, exist_ok=True)
+        controller_logs = ["/tmp/ieee1905_agent_log.txt", "/tmp/ieee1905_ctrl_log.txt", "/tmp/em_agent.log", "/tmp/em_cli.log", "/tmp/em_ctrl.log", "/rdklogs/logs/WiFilog.txt.0", "/rdklogs/logs/WiFilog.txt.1", "/rdklogs/logs/wifiCtrl.txt", "/rdklogs/logs/wifiDMCLI.txt", "/rdklogs/logs/wifiEM.txt", "/rdklogs/logs/wifiHal.txt", "/rdklogs/logs/wifiHalStats.txt", "/rdklogs/logs/wifiMgr.txt"]
+        agent_logs = ["/tmp/ieee1905_agent_log.txt", "/tmp/em_agent.log", "/rdklogs/logs/WiFilog.txt.0", "/rdklogs/logs/WiFilog.txt.1", "/rdklogs/logs/wifiCtrl.txt", "/rdklogs/logs/wifiDMCLI.txt", "/rdklogs/logs/wifiEM.txt", "/rdklogs/logs/wifiHal.txt", "/rdklogs/logs/wifiHalStats.txt", "/rdklogs/logs/wifiMgr.txt", "/rdklogs/logs/emAgent.txt"]
+        try:
+            #Step 1: Copy agent logs to controller (/tmp)
+            staged_dirs = ssh.copy_agent_logs_to_controller(agent_logs, "/tmp")
+            #Step 2: Download controller logs
+            for remote_path in controller_logs:
+                filename = os.path.basename(remote_path)
+                local_path = os.path.join(test_dir, filename)
+                try:
+                    ssh.download_logfiles_from_controller(remote_path, local_path)
+                except Exception as e:
+                    print(f"[CTRL ERROR] {remote_path}: {e}")
+            #Step 3: Download staged agent logs from controller
+            for ext_name, ext_dir in staged_dirs.items():
+                local_ext_dir = os.path.join(agent_test_dir, ext_name)
+                os.makedirs(local_ext_dir, exist_ok=True)
+                for remote_path in agent_logs:
+                    staged_path = f"{ext_dir}/{os.path.basename(remote_path)}"
+                    local_path = os.path.join(local_ext_dir, os.path.basename(remote_path))
+                    try:
+                        ssh.download_logfiles_from_controller(staged_path, local_path)
+                    except Exception as e:
+                        print(f"[AGENT ERROR] {staged_path}: {e}")
+        except Exception as e:
+            print(f"[LOG ERROR] Failure in log collection: {e}")
+            
 @pytest.fixture(scope="session", autouse=True)
 def global_setup(config, test_run_dirs):
     """
